@@ -321,70 +321,77 @@ app.MapPost("/crop", async Task<IResult> (CropRequest req, CancellationToken ct)
     }
 
     // Загружаем изображение
-    await using var input = File.OpenRead(originalAbsolutePath);
-    using var image = await Image.LoadAsync(input, ct);
-
-    var imgW = image.Width;
-    var imgH = image.Height;
-    if (imgW <= 0 || imgH <= 0)
+    // IMPORTANT: do not keep the file stream open while overwriting the original.
+    Image image;
+    await using (var input = new FileStream(originalAbsolutePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
     {
-        return Results.BadRequest(new { error = "invalid image" });
+        image = await Image.LoadAsync(input, ct);
     }
 
-    // Клэмпим прямоугольник в границы
-    var x = Math.Clamp(req.X, 0, imgW - 1);
-    var y = Math.Clamp(req.Y, 0, imgH - 1);
-    var w = Math.Clamp(req.Width, 1, imgW - x);
-    var h = Math.Clamp(req.Height, 1, imgH - y);
-
-    // Принудительно приводим к 16:9 (на всякий случай)
-    // Берём ширину как базу и пересчитываем высоту.
-    var targetH = (int)Math.Round(w * 9.0 / 16.0);
-    if (targetH <= 0) targetH = 1;
-    if (targetH > h)
+    using (image)
     {
-        // если высоты не хватает — подгоняем ширину под высоту
-        var targetW = (int)Math.Round(h * 16.0 / 9.0);
-        targetW = Math.Max(1, targetW);
-        w = Math.Min(w, targetW);
-        h = Math.Min(h, (int)Math.Round(w * 9.0 / 16.0));
+        var imgW = image.Width;
+        var imgH = image.Height;
+        if (imgW <= 0 || imgH <= 0)
+        {
+            return Results.BadRequest(new { error = "invalid image" });
+        }
+
+        // Клэмпим прямоугольник в границы
+        var x = Math.Clamp(req.X, 0, imgW - 1);
+        var y = Math.Clamp(req.Y, 0, imgH - 1);
+        var w = Math.Clamp(req.Width, 1, imgW - x);
+        var h = Math.Clamp(req.Height, 1, imgH - y);
+
+        // Принудительно приводим к 16:9 (на всякий случай)
+        // Берём ширину как базу и пересчитываем высоту.
+        var targetH = (int)Math.Round(w * 9.0 / 16.0);
+        if (targetH <= 0) targetH = 1;
+        if (targetH > h)
+        {
+            // если высоты не хватает — подгоняем ширину под высоту
+            var targetW = (int)Math.Round(h * 16.0 / 9.0);
+            targetW = Math.Max(1, targetW);
+            w = Math.Min(w, targetW);
+            h = Math.Min(h, (int)Math.Round(w * 9.0 / 16.0));
+        }
+        else
+        {
+            h = targetH;
+        }
+
+        // Переклэмпим после подгонки
+        if (x + w > imgW) w = imgW - x;
+        if (y + h > imgH) h = imgH - y;
+
+        image.Mutate(ctx => ctx.Crop(new Rectangle(x, y, w, h)));
+
+        // Сохраняем поверх оригинала (атомарно)
+        await SaveImageWithSafeTempAsync(image, originalAbsolutePath, ct);
+
+        // Пересоздаём preview
+        var previewAbsolutePath = Path.Combine(previewDir, storedName);
+        await CreatePreviewImageAsync(originalAbsolutePath, previewAbsolutePath, PreviewWidthPx, ct);
+
+        // Удаляем все ресайзы, т.к. они больше не соответствуют новому оригиналу
+        foreach (var rw in resizeWidths)
+        {
+            TryDeleteFile(Path.Combine(resizedDir, rw.ToString(), storedName));
+        }
+
+        // Обновляем историю: размеры и сброс resized
+        await UpdateHistoryAfterCropAsync(historyPath, historyLock, storedName, w, h, ct);
+
+        return Results.Ok(new
+        {
+            ok = true,
+            storedName,
+            imageWidth = w,
+            imageHeight = h,
+            previewRelativePath = $"preview/{storedName}",
+            originalRelativePath = $"upload/{storedName}"
+        });
     }
-    else
-    {
-        h = targetH;
-    }
-
-    // Переклэмпим после подгонки
-    if (x + w > imgW) w = imgW - x;
-    if (y + h > imgH) h = imgH - y;
-
-    image.Mutate(ctx => ctx.Crop(new Rectangle(x, y, w, h)));
-
-    // Сохраняем поверх оригинала (атомарно)
-    await SaveImageWithSafeTempAsync(image, originalAbsolutePath, ct);
-
-    // Пересоздаём preview
-    var previewAbsolutePath = Path.Combine(previewDir, storedName);
-    await CreatePreviewImageAsync(originalAbsolutePath, previewAbsolutePath, PreviewWidthPx, ct);
-
-    // Удаляем все ресайзы, т.к. они больше не соответствуют новому оригиналу
-    foreach (var rw in resizeWidths)
-    {
-        TryDeleteFile(Path.Combine(resizedDir, rw.ToString(), storedName));
-    }
-
-    // Обновляем историю: размеры и сброс resized
-    await UpdateHistoryAfterCropAsync(historyPath, historyLock, storedName, w, h, ct);
-
-    return Results.Ok(new
-    {
-        ok = true,
-        storedName,
-        imageWidth = w,
-        imageHeight = h,
-        previewRelativePath = $"preview/{storedName}",
-        originalRelativePath = $"upload/{storedName}"
-    });
 })
 .DisableAntiforgery()
 .Accepts<CropRequest>("application/json")
@@ -484,8 +491,19 @@ static async Task SaveImageWithSafeTempAsync(Image image, string outAbsolutePath
     var tempPath = Path.Combine(dir, $"{fileNoExt}.tmp{ext}");
 
     await image.SaveAsync(tempPath, ct);
-    File.Copy(tempPath, outAbsolutePath, overwrite: true);
-    File.Delete(tempPath);
+
+    // Prefer atomic replace.
+    // On Linux, this should succeed even if the old file is being read.
+    try
+    {
+        File.Move(tempPath, outAbsolutePath, overwrite: true);
+    }
+    catch
+    {
+        // Fallback for platforms/filesystems where Move-overwrite isn't supported.
+        File.Copy(tempPath, outAbsolutePath, overwrite: true);
+        File.Delete(tempPath);
+    }
 }
 
 static bool IsLikelyImageExtension(string? ext)
