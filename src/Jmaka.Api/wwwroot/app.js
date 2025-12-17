@@ -15,6 +15,8 @@ const cropRectEl = document.getElementById('cropRect');
 const cropApplyBtn = document.getElementById('cropApply');
 const cropCancelBtn = document.getElementById('cropCancel');
 const cropCloseBtn = document.getElementById('cropClose');
+const cropSourceLabel = document.getElementById('cropSourceLabel');
+const cropOpenOriginal = document.getElementById('cropOpenOriginal');
 
 const TARGET_WIDTHS = [720, 1080, 1260, 1920, 2440];
 
@@ -632,6 +634,15 @@ function openCropModal() {
 
   cropModal.hidden = false;
 
+  // UI hint: show which file we are cropping + link to open it.
+  if (cropSourceLabel) {
+    cropSourceLabel.textContent = `Режем оригинал: ${cropState.originalRelativePath}`;
+  }
+  if (cropOpenOriginal) {
+    cropOpenOriginal.href = `${cropState.originalRelativePath}?v=${Date.now()}`;
+    cropOpenOriginal.hidden = false;
+  }
+
   // Загружаем оригинал в модалку; добавляем cache-buster, чтобы после crop браузер не показывал старую картинку
   cropImg.src = `${cropState.originalRelativePath}?v=${Date.now()}`;
   cropImg.alt = lastUpload.originalName || lastUpload.storedName || 'crop';
@@ -664,6 +675,13 @@ function closeCropModal() {
   if (cropImg) {
     cropImg.removeAttribute('src');
     cropImg.alt = '';
+  }
+  if (cropSourceLabel) {
+    cropSourceLabel.textContent = '';
+  }
+  if (cropOpenOriginal) {
+    cropOpenOriginal.href = '#';
+    cropOpenOriginal.hidden = true;
   }
 }
 

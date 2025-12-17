@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Jmaka 0.1.0f</title>
+  <title>Jmaka 0.1.0g</title>
   <link rel="stylesheet" href="app.css" />
 </head>
 <body>
@@ -17,7 +17,7 @@
       </button>
 
       <div class="preview-wrap">
-        <div class="preview-title">Jmaka 0.1.0f</div>
+        <div class="preview-title">Jmaka 0.1.0g</div>
 
         <div class="preview-body">
           <div id="sizeButtons" class="size-buttons" aria-label="Размеры" hidden>
@@ -66,7 +66,13 @@
     <div class="modal-backdrop" data-close="1"></div>
     <div class="modal-card" role="dialog" aria-modal="true" aria-label="Кадрирование">
       <div class="modal-header">
-        <div class="modal-title">Кадрирование (16:9)</div>
+        <div class="modal-title-wrap">
+          <div class="modal-title">Кадрирование (16:9)</div>
+          <div class="modal-sub">
+            <span id="cropSourceLabel" class="modal-subtext"></span>
+            <a id="cropOpenOriginal" class="modal-sublink" href="#" target="_blank" rel="noreferrer" hidden>Открыть оригинал</a>
+          </div>
+        </div>
         <button id="cropClose" class="modal-x" type="button" aria-label="Закрыть">×</button>
       </div>
       <div class="modal-body">
