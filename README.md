@@ -30,11 +30,20 @@
 ### Вариант A (рекомендуется) — скачать готовый архив из GitHub Releases
 Мы прикладываем готовые архивы к релизам и будем делать так всегда.
 
-Скачать архив 0.1.0b одной командой (на сервере, в домашнюю папку пользователя):
+#### Одна команда: скачать архив + (опционально) распаковать в домашнюю папку + запустить установщик
 ```bash path=null start=null
 curl -L -o ~/jmaka.tar.gz \
-  https://github.com/Fastdust/Jmaka/releases/download/0.1.0b/jmaka-0.1.0b-linux-x64.tar.gz
+  https://github.com/Fastdust/Jmaka/releases/download/0.1.0b/jmaka-0.1.0b-linux-x64.tar.gz \
+&& mkdir -p ~/jmaka_bundle \
+&& tar -xzf ~/jmaka.tar.gz -C ~/jmaka_bundle \
+&& curl -L -o ~/jmaka-install.sh \
+  https://raw.githubusercontent.com/Fastdust/Jmaka/main/deploy/ubuntu24/install.sh \
+&& bash ~/jmaka-install.sh --interactive
 ```
+
+Пояснения:
+- `~/jmaka.tar.gz` — архив релиза.
+- `~/jmaka_bundle/` — распакованное содержимое архива (для проверки). Установщик всё равно использует tar.gz и сам раскладывает файлы в `/var/www/jmaka/...`.
 
 ### Вариант B — собрать архив самому (на Windows)
 Из корня репозитория:
@@ -43,8 +52,11 @@ curl -L -o ~/jmaka.tar.gz \
 Результат: `artifacts/jmaka-0.1.0b-linux-x64.tar.gz`
 
 ### Установка/обновление инстанса (мастер)
-На сервере (в папке репозитория):
+Если репозиторий уже на сервере, можно запускать напрямую:
 - `bash deploy/ubuntu24/install.sh`
+
+Или (рекомендуется для “без git”):
+- скачать `install.sh` в домашнюю папку и запустить: `bash ~/jmaka-install.sh`
 
 Скрипт сам запросит sudo (если нужно) и по умолчанию возьмёт архив из `~/jmaka.tar.gz`.
 
