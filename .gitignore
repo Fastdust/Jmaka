@@ -1,0 +1,54 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Environment / secrets
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node
+node_modules/
+
+# .NET
+**/bin/
+**/obj/
+
+# Local publish artifacts (created by deploy/publish-linux.ps1)
+artifacts/
+
+# Uploads (runtime files)
+src/Jmaka.Api/upload/*
+!src/Jmaka.Api/upload/.gitkeep
+
+# Resized images (runtime files)
+src/Jmaka.Api/resized/*
+!src/Jmaka.Api/resized/.gitkeep
+
+# Preview thumbnails (runtime files)
+src/Jmaka.Api/preview/*
+!src/Jmaka.Api/preview/.gitkeep
+
+# History (runtime files)
+src/Jmaka.Api/data/history.json
+!src/Jmaka.Api/data/.gitkeep
+
+# Build outputs
+/dist/
+/build/
+/out/
+
+# Misc
+*.tmp

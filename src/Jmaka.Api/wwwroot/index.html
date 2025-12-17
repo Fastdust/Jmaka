@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jmaka 0.1.0b</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <main class="page">
+    <section class="uploader" aria-label="Загрузка файла">
+      <button class="save-btn" id="saveBtn" type="button" aria-label="Загрузить файл">
+        <!-- Иконка дискеты (SVG) -->
+        <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+          <path d="M10 8h34l10 10v38H10V8zm6 6v12h26V14H16zm0 20v16h32V34H16zm6-16h12v6H22v-6z" />
+        </svg>
+      </button>
+
+      <div class="preview-wrap">
+        <div class="preview-title">Jmaka 0.1.0b</div>
+
+        <div class="preview-body">
+          <div id="sizeButtons" class="size-buttons" aria-label="Размеры" hidden>
+            <button class="size-btn" type="button" data-w="2440" disabled>2440</button>
+            <button class="size-btn" type="button" data-w="1920" disabled>1920</button>
+            <button class="size-btn" type="button" data-w="1260" disabled>1260</button>
+            <button class="size-btn" type="button" data-w="1080" disabled>1080</button>
+            <button class="size-btn" type="button" data-w="720" disabled>720</button>
+          </div>
+
+          <img id="preview" class="preview" alt="" />
+        </div>
+
+        <div id="hint" class="hint">Нажмите на дискету, выберите изображение — и оно загрузится.</div>
+      </div>
+
+      <input id="fileInput" class="file-input" type="file" accept="image/*" />
+    </section>
+
+    <div class="links-wrap" aria-label="Таблица файлов">
+      <div class="links-title">Готовые файлы</div>
+      <div class="table-wrap">
+        <table class="files-table" aria-label="Готовые файлы">
+          <thead>
+            <tr>
+              <th class="col-dt">Дата - время</th>
+              <th class="col-orig">Оригинал</th>
+              <th class="col-size">720</th>
+              <th class="col-size">1080</th>
+              <th class="col-size">1260</th>
+              <th class="col-size">1920</th>
+              <th class="col-size">2440</th>
+              <th class="col-del"></th>
+            </tr>
+          </thead>
+          <tbody id="filesTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <pre id="result" class="result" aria-label="Результат"></pre>
+  </main>
+
+  <!-- Модалка кадрирования (16:9) -->
+  <div id="cropModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="1"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-label="Кадрирование">
+      <div class="modal-header">
+        <div class="modal-title">Кадрирование (16:9)</div>
+        <button id="cropClose" class="modal-x" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="cropStage" class="crop-stage">
+          <img id="cropImg" class="crop-img" alt="" />
+          <div id="cropRect" class="crop-rect">
+            <div class="crop-handle tl" data-h="tl"></div>
+            <div class="crop-handle tr" data-h="tr"></div>
+            <div class="crop-handle bl" data-h="bl"></div>
+            <div class="crop-handle br" data-h="br"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div class="modal-hint">Перетаскивайте рамку и её углы. Соотношение сторон фиксировано 16:9.</div>
+        <div class="modal-actions">
+          <button id="cropCancel" class="btn" type="button">Отмена</button>
+          <button id="cropApply" class="btn primary" type="button">Обрезать</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
