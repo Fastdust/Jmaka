@@ -27,17 +27,23 @@
 ## Деплой на Ubuntu 24 (максимально просто)
 Нужно: VPS с Ubuntu 24 + установленный nginx (как reverse-proxy).
 
-### Шаг 1 — собрать архив под Linux (на Windows)
+### Вариант A (рекомендуется) — скачать готовый архив из GitHub Releases
+Мы прикладываем готовые архивы к релизам и будем делать так всегда.
+
+Скачать архив 0.1.0b одной командой (на сервере):
+```bash path=null start=null
+sudo mkdir -p /var/www/jmaka/_bundles
+sudo curl -L -o /var/www/jmaka/_bundles/jmaka-0.1.0b-linux-x64.tar.gz \
+  https://github.com/Fastdust/Jmaka/releases/download/0.1.0b/jmaka-0.1.0b-linux-x64.tar.gz
+```
+
+### Вариант B — собрать архив самому (на Windows)
 Из корня репозитория:
 - `powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\publish-linux.ps1`
 
-Результат: `artifacts/jmaka-linux-x64.tar.gz`
+Результат: `artifacts/jmaka-0.1.0b-linux-x64.tar.gz`
 
-### Шаг 2 — загрузить архив на сервер
-Рекомендуемая папка:
-- `/var/www/jmaka/_bundles/`
-
-### Шаг 3 — установить/обновить инстанс (мастер)
+### Установка/обновление инстанса (мастер)
 На сервере (в папке репозитория):
 - `sudo bash deploy/ubuntu24/install.sh`
 
@@ -45,6 +51,8 @@
 - разложит файлы в `/var/www/jmaka/<name>/app`
 - создаст storage в `/var/www/jmaka/<name>/storage`
 - создаст systemd сервис `jmaka-<name>` на `127.0.0.1:<port>`
+- проверит недостающие компоненты (пакеты, runtime)
+- покажет занятые порты и предложит первый свободный в диапазоне 5000-5999
 - по выбору: распечатает конфиг nginx или создаст файл в `/etc/nginx/...`
 
 ### Два сценария подключения к домену
@@ -70,5 +78,10 @@
 - `JMAKA_STORAGE_ROOT` — куда писать upload/resized/preview/data (скрипт ставит в `/var/www/jmaka/<name>/storage`)
 - `JMAKA_BASE_PATH` — base-path для подпапки (например `/jmaka`), `/` = корень
 
-## Известная особенность (Windows)
+## Windows (локальные тесты)
+### Запуск
+- `dotnet run --project src/Jmaka.Api --launch-profile http`
+- открыть `http://localhost:5189/`
+
+### Известная особенность (file lock)
 Если `dotnet build -c Release` падает с ошибкой, что файл `Jmaka.Api.exe` занят — значит запущен процесс из `bin/Release`. Остановите его и пересоберите.
