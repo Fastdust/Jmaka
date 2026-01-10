@@ -498,6 +498,13 @@ html, body {
 /* Split modal */
 .split-card {
   width: min(1180px, calc(100% - 24px));
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.split-card .modal-body {
+  overflow: auto;
 }
 
 .split-controls {
@@ -594,7 +601,9 @@ html, body {
 
 .split-stage {
   position: relative;
-  width: 100%;
+  /* Keep stage inside viewport: limit height, keep 16:9 */
+  width: min(100%, calc(min(60vh, 520px) * 16 / 9));
+  margin: 0 auto;
   aspect-ratio: 16 / 9;
   background: rgba(0,0,0,0.25);
   border: 1px solid var(--border);
@@ -663,7 +672,15 @@ html, body {
   border: 2px solid rgba(17, 24, 39, 0.95);
 }
 
+.split-handle.tl { left: -7px; top: -7px; cursor: nwse-resize; }
+.split-handle.tr { right: -7px; top: -7px; cursor: nesw-resize; }
+.split-handle.bl { left: -7px; bottom: -7px; cursor: nesw-resize; }
 .split-handle.br { right: -7px; bottom: -7px; cursor: nwse-resize; }
+
+.split-handle.t { left: 50%; top: -7px; transform: translateX(-50%); cursor: ns-resize; }
+.split-handle.b { left: 50%; bottom: -7px; transform: translateX(-50%); cursor: ns-resize; }
+.split-handle.l { left: -7px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
+.split-handle.r { right: -7px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
 
 .viewer-body {
   padding: 12px;

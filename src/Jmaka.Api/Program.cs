@@ -592,12 +592,20 @@ app.MapPost("/split", async Task<IResult> (SplitRequest req, CancellationToken c
         return Results.BadRequest(new { error = "invalid storedName" });
     }
 
-    // we build split from resized/1280 assets
-    var srcA = Path.Combine(resizedDir, "1280", storedNameA);
-    var srcB = Path.Combine(resizedDir, "1280", storedNameB);
+    // we build split from any of the supported resized widths (prefer client-selected width; fallback to 1280)
+    var widthA = req.SourceWidthA ?? 1280;
+    var widthB = req.SourceWidthB ?? 1280;
+
+    if (!resizeWidths.Contains(widthA) || !resizeWidths.Contains(widthB))
+    {
+        return Results.BadRequest(new { error = "unsupported source width" });
+    }
+
+    var srcA = Path.Combine(resizedDir, widthA.ToString(), storedNameA);
+    var srcB = Path.Combine(resizedDir, widthB.ToString(), storedNameB);
     if (!File.Exists(srcA) || !File.Exists(srcB))
     {
-        return Results.BadRequest(new { error = "both images must have resized 1280 generated" });
+        return Results.BadRequest(new { error = "both images must have the selected resized width generated" });
     }
 
     const int outW = 1280;
@@ -1098,7 +1106,14 @@ record ResizeRequest(string StoredName, int Width);
 record DeleteRequest(string StoredName);
 record CropRequest(string StoredName, int X, int Y, int Width, int Height);
 record SplitViewRect(double X, double Y, double W, double H, double ViewW, double ViewH);
-record SplitRequest(string StoredNameA, string StoredNameB, SplitViewRect A, SplitViewRect B);
+record SplitRequest(
+    string StoredNameA,
+    string StoredNameB,
+    SplitViewRect A,
+    SplitViewRect B,
+    int? SourceWidthA = null,
+    int? SourceWidthB = null
+);
 record UploadHistoryItem(
     string StoredName,
     string OriginalName,

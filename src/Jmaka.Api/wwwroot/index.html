@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Jmaka 0.1.0h</title>
-  <link rel="stylesheet" href="app.css?v=0.1.0h" />
+  <title>Jmaka 0.1.0i</title>
+  <link rel="stylesheet" href="app.css?v=0.1.0i" />
 </head>
 <body>
   <main class="page">
@@ -17,7 +17,7 @@
       </button>
 
       <div class="preview-wrap">
-        <div class="preview-title">Jmaka 0.1.0h</div>
+        <div class="preview-title">Jmaka 0.1.0i</div>
 
         <div class="preview-body">
           <div class="preview-controls" aria-label="Панель управления">
@@ -133,7 +133,7 @@
       </div>
       <div class="modal-body">
         <div class="split-controls" aria-label="Выбор изображений">
-          <div class="split-label">Выберите слот, затем кликните по превью из списка 1280:</div>
+          <div class="split-label">Выберите слот, затем кликните по превью (любой готовый размер 720/1080/1280/1920/2440):</div>
           <div class="split-targets">
             <button id="splitPickTargetA" class="split-target is-active" type="button" aria-label="Выбор для картинки 1">
               <div class="split-target-title">#1</div>
@@ -150,13 +150,27 @@
           <div id="splitHalfLeft" class="split-half left" aria-label="Левая половина">
             <div id="splitItemA" class="split-item" data-i="a" hidden>
               <img class="split-img" alt="" />
+              <div class="split-handle tl" data-h="tl"></div>
+              <div class="split-handle t" data-h="t"></div>
+              <div class="split-handle tr" data-h="tr"></div>
+              <div class="split-handle r" data-h="r"></div>
               <div class="split-handle br" data-h="br"></div>
+              <div class="split-handle b" data-h="b"></div>
+              <div class="split-handle bl" data-h="bl"></div>
+              <div class="split-handle l" data-h="l"></div>
             </div>
           </div>
           <div id="splitHalfRight" class="split-half right" aria-label="Правая половина">
             <div id="splitItemB" class="split-item" data-i="b" hidden>
               <img class="split-img" alt="" />
+              <div class="split-handle tl" data-h="tl"></div>
+              <div class="split-handle t" data-h="t"></div>
+              <div class="split-handle tr" data-h="tr"></div>
+              <div class="split-handle r" data-h="r"></div>
               <div class="split-handle br" data-h="br"></div>
+              <div class="split-handle b" data-h="b"></div>
+              <div class="split-handle bl" data-h="bl"></div>
+              <div class="split-handle l" data-h="l"></div>
             </div>
           </div>
         </div>
@@ -213,6 +227,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=0.1.0h"></script>
+  <script src="app.js?v=0.1.0i"></script>
 </body>
 </html>

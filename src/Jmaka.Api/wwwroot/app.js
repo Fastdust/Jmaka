@@ -272,8 +272,8 @@ const splitState = {
   open: false,
   history: [],
   action: null,
-  a: { storedName: null, url: null, natW: 0, natH: 0, x: 0, y: 0, w: 0, h: 0 },
-  b: { storedName: null, url: null, natW: 0, natH: 0, x: 0, y: 0, w: 0, h: 0 }
+  a: { storedName: null, sourceWidth: null, url: null, natW: 0, natH: 0, x: 0, y: 0, w: 0, h: 0 },
+  b: { storedName: null, sourceWidth: null, url: null, natW: 0, natH: 0, x: 0, y: 0, w: 0, h: 0 }
 };
 
 function splitShowItem(which) {
@@ -394,9 +394,22 @@ function splitSyncGallerySelection() {
   }
 }
 
-function splitGet1280Url(item) {
+function splitGetBestResizedWidth(item) {
   if (!item || !item.resized) return null;
-  const rel = item.resized['1280'] || item.resized[1280];
+
+  // Prefer the biggest available for quality.
+  for (let i = TARGET_WIDTHS.length - 1; i >= 0; i--) {
+    const w = TARGET_WIDTHS[i];
+    const rel = item.resized[String(w)] || item.resized[w];
+    if (rel) return w;
+  }
+
+  return null;
+}
+
+function splitGetResizedUrl(item, width) {
+  if (!item || !item.resized || !width) return null;
+  const rel = item.resized[String(width)] || item.resized[width];
   if (!rel) return null;
   return withCacheBust(String(rel), item.storedName);
 }
@@ -414,14 +427,16 @@ function splitSetItemFromStoredName(which, storedName) {
     return;
   }
 
-  const url = splitGet1280Url(item);
-  if (!url) {
+  const bestW = splitGetBestResizedWidth(item);
+  const url = bestW ? splitGetResizedUrl(item, bestW) : null;
+  if (!url || !bestW) {
     el.hidden = true;
     return;
   }
 
   const st = which === 'a' ? splitState.a : splitState.b;
   st.storedName = item.storedName;
+  st.sourceWidth = bestW;
   st.url = url;
 
   el.hidden = false;
@@ -457,7 +472,7 @@ async function openSplitModal() {
   }
 
   splitState.history = await fetchHistoryRaw();
-  const candidates = splitState.history.filter(it => !!splitGet1280Url(it));
+  const candidates = splitState.history.filter(it => !!splitGetBestResizedWidth(it));
 
   // build gallery
   if (splitGallery) {
@@ -560,6 +575,11 @@ async function applySplit() {
     return;
   }
 
+  if (!a.sourceWidth || !b.sourceWidth) {
+    if (splitHint) splitHint.textContent = 'Для выбранных картинок нет готовых размеров (720/1080/1280/1920/2440).';
+    return;
+  }
+
   const halfA = splitGetHalfSize('a');
   const halfB = splitGetHalfSize('b');
 
@@ -571,6 +591,8 @@ async function applySplit() {
   const req = {
     storedNameA: a.storedName,
     storedNameB: b.storedName,
+    sourceWidthA: a.sourceWidth,
+    sourceWidthB: b.sourceWidth,
     a: { x: a.x, y: a.y, w: a.w, h: a.h, viewW: halfA.w, viewH: halfA.h },
     b: { x: b.x, y: b.y, w: b.w, h: b.h, viewW: halfB.w, viewH: halfB.h }
   };
@@ -689,14 +711,14 @@ function wireSplitUI() {
       if (splitPickTargetA) splitPickTargetA.classList.toggle('is-active', which === 'a');
       if (splitPickTargetB) splitPickTargetB.classList.toggle('is-active', which === 'b');
 
-      if (handle === 'br') {
+      if (handle) {
         splitState.action = {
           type: 'resize',
           which,
+          handle,
           startX: p.x,
           startY: p.y,
-          startW: st.w,
-          startH: st.h
+          startRect: { x: st.x, y: st.y, w: st.w, h: st.h }
         };
       } else {
         splitState.action = {
@@ -731,13 +753,49 @@ function wireSplitUI() {
         return;
       }
 
-      // resize
+      // resize (proportional), with anchors depending on handle
       const dx = p.x - splitState.action.startX;
-      const desiredW = splitState.action.startW + dx;
+      const dy = p.y - splitState.action.startY;
 
       const aspect = st.natW && st.natH ? (st.natW / st.natH) : 1;
-      st.w = desiredW;
-      splitClampResize(which, st, halfW, halfH, aspect);
+      const sr = splitState.action.startRect;
+      const h = String(splitState.action.handle || 'br');
+
+      // Compute width delta based on handle direction.
+      const dwX = (h.includes('l') ? -dx : dx);
+      const dwY = (h.includes('t') ? -dy : dy) * aspect;
+
+      let dw;
+      if (h === 'l' || h === 'r') {
+        dw = dwX;
+      } else if (h === 't' || h === 'b') {
+        dw = dwY;
+      } else {
+        // corners: pick the dominant movement
+        dw = Math.abs(dwX) >= Math.abs(dwY) ? dwX : dwY;
+      }
+
+      const minW = 60;
+      const maxWHard = 20000;
+      const newW = Math.max(minW, Math.min(sr.w + dw, maxWHard));
+      const newH = newW / aspect;
+
+      // Anchor: opposite side stays in place.
+      let newX = sr.x;
+      let newY = sr.y;
+      if (h.includes('l')) {
+        newX = sr.x + (sr.w - newW);
+      }
+      if (h.includes('t')) {
+        newY = sr.y + (sr.h - newH);
+      }
+
+      st.x = newX;
+      st.y = newY;
+      st.w = newW;
+      st.h = newH;
+
+      splitClampMove(which, st, halfW, halfH);
       splitShowItem(which);
     });
 
