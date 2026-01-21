@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Jmaka 0.1.0k</title>
-  <link rel="stylesheet" href="app.css?v=0.1.0k" />
+  <title>Jmaka 0.1.3</title>
+  <link rel="stylesheet" href="app.css?v=0.1.3" />
 </head>
 <body>
   <main class="page">
@@ -26,14 +26,15 @@
       </button>
 
       <div class="preview-wrap">
-        <div class="preview-title">Jmaka 0.1.0k</div>
+        <div class="preview-title">Jmaka 0.1.3</div>
 
         <div class="main-controls" aria-label="Панель управления">
           <div class="tool-buttons" aria-label="Инструменты" hidden>
             <button id="splitToolBtn" class="btn tool-btn" type="button">Split</button>
             <button id="split3ToolBtn" class="btn tool-btn" type="button">Split3</button>
-            <button id="trashToolBtn" class="btn tool-btn" type="button">Trash</button>
+            <button id="trashFixToolBtn" class="btn tool-btn" type="button">TrashFix</button>
             <button id="cropToolBtn" class="btn tool-btn" type="button">Crop</button>
+            <button id="trashToolBtn" class="btn tool-btn" type="button">Trash experimental</button>
           </div>
 
           <div id="sizeButtons" class="size-buttons" aria-label="Размеры" hidden>
@@ -44,6 +45,7 @@
         </div>
 
         <div id="hint" class="hint">Нажмите на дискету, перетащите файлы или вставьте из буфера обмена — и они загрузятся.</div>
+        <button id="helpBtn" class="help-btn" type="button" aria-label="Справка">?</button>
       </div>
 
       <input id="fileInput" class="file-input" type="file" accept="image/*" multiple />
@@ -225,6 +227,8 @@
               <div id="trashImgViewport" class="trash-img-viewport">
                 <img id="trashImg" class="trash-img" alt="" />
               </div>
+              <!-- PNG-шаблон всегда поверх картинки, чтобы превью совпадало с итоговым видом -->
+              <div class="trash-overlay" aria-hidden="true"></div>
               <div id="trashHandleLeft" class="trash-handle left" data-side="left"></div>
               <div id="trashHandleRight" class="trash-handle right" data-side="right"></div>
             </div>
@@ -234,6 +238,10 @@
       <div class="modal-footer">
         <div id="trashHint" class="modal-hint">Выберите строку в таблице файлов, затем откройте Trash.</div>
         <div class="modal-actions">
+          <div class="trash-zoom-controls" aria-label="Масштаб картинки подложки">
+            <button id="trashZoomOut" class="btn trash-zoom-btn" type="button">−</button>
+            <button id="trashZoomIn" class="btn trash-zoom-btn" type="button">+</button>
+          </div>
           <button id="trashCancel" class="btn" type="button">Закрыть</button>
           <button id="trashApply" class="btn primary" type="button" disabled>Сделать (позже)</button>
         </div>
@@ -367,6 +375,58 @@
     </div>
   </div>
 
-  <script src="app.js?v=0.1.0k"></script>
+  <!-- Справка -->
+  <div id="helpModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="1"></div>
+    <div class="modal-card help-card" role="dialog" aria-modal="true" aria-label="Справка по Jmaka">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-title">Справка по Jmaka</div>
+          <div class="modal-sub">
+            <span class="modal-subtext">Краткое описание всех функций и горячих действий.</span>
+          </div>
+        </div>
+        <button id="helpClose" class="modal-x" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <div class="modal-body help-body">
+        <p><strong>Jmaka</strong> — небольшое веб-приложение для загрузки и обработки изображений.</p>
+        <h3>Загрузка файлов</h3>
+        <ul>
+          <li>Кнопка-дискета — выбор до 15 файлов за раз.</li>
+          <li>Поддержка drag &amp; drop: просто перетащите файлы на окно.</li>
+          <li>Вставка из буфера обмена (Ctrl+V) для картинок.</li>
+        </ul>
+        <h3>Таблица файлов</h3>
+        <ul>
+          <li>Каждая строка — загруженное изображение (новые сверху).</li>
+          <li>В ячейке «Оригинал» — миниатюра + маленькая кнопка-дискета для скачивания.</li>
+          <li>Размеры 1280 / 1920 / 2440 создаются по клику по кнопкам сверху.</li>
+          <li>Крестик справа удаляет запись и все связанные файлы.</li>
+        </ul>
+        <h3>Инструменты</h3>
+        <ul>
+          <li><strong>Crop</strong> — кадрирование исходника с выбором пропорций (1:1, 2:3, 16:9).</li>
+          <li><strong>Split</strong> — две картинки → одна 1280×720, белая полоса 7px по центру.</li>
+          <li><strong>Split3</strong> — три картинки → одна 1280×720, две белые полосы 7px.</li>
+          <li><strong>TrashFix</strong> — вертикальная карточка по строгому PNG-шаблону:
+            <ul>
+              <li>режим фиксированного окна (как на исходном PNG);</li>
+              <li>картинка подложки двигается мышью и масштабируется пропорционально;</li>
+              <li>масштаб — через колесо мыши или кнопки «−»/«+» внизу справа.</li>
+            </ul>
+          </li>
+          <li><strong>Trash experimental</strong> — экспериментальный режим Trash с изменяемой шириной окна.</li>
+        </ul>
+        <h3>Прочее</h3>
+        <ul>
+          <li>История Split / Split3 / TrashImg — в правой таблице.</li>
+          <li>Каждый результат можно открыть, скачать или удалить.</li>
+          <li>Старые записи и файлы автоматически очищаются по времени хранения.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=0.1.3"></script>
 </body>
 </html>

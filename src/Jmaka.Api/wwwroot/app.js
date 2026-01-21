@@ -123,6 +123,11 @@ const deleteCancelBtn = document.getElementById('deleteCancel');
 const deleteConfirmBtn = document.getElementById('deleteConfirm');
 const deleteSkipConfirmEl = document.getElementById('deleteSkipConfirm');
 
+// help modal
+const helpBtn = document.getElementById('helpBtn');
+const helpModal = document.getElementById('helpModal');
+const helpCloseBtn = document.getElementById('helpClose');
+
 const DELETE_SKIP_KEY = 'jmaka_delete_skip_confirm';
 
 function getDeleteSkipConfirm() {
@@ -182,6 +187,37 @@ if (deleteCloseBtn) deleteCloseBtn.addEventListener('click', () => closeDeleteMo
 if (deleteCancelBtn) deleteCancelBtn.addEventListener('click', () => closeDeleteModal(false));
 if (deleteConfirmBtn) deleteConfirmBtn.addEventListener('click', () => closeDeleteModal(true));
 
+// help modal wiring
+if (helpBtn && helpModal) {
+  const openHelp = () => {
+    helpModal.hidden = false;
+  };
+  const closeHelp = () => {
+    helpModal.hidden = true;
+  };
+
+  helpBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openHelp();
+  });
+
+  if (helpCloseBtn) {
+    helpCloseBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeHelp();
+    });
+  }
+
+  helpModal.addEventListener('click', (e) => {
+    const t = e.target;
+    if (t && t.dataset && t.dataset.close) {
+      closeHelp();
+    }
+  });
+}
+
 // crop modal elements
 const cropModal = document.getElementById('cropModal');
 const cropStage = document.getElementById('cropStage');
@@ -240,6 +276,7 @@ const split3Hint = document.getElementById('split3Hint');
 
 // TrashImg elements
 const trashToolBtn = document.getElementById('trashToolBtn');
+const trashFixToolBtn = document.getElementById('trashFixToolBtn');
 const trashModal = document.getElementById('trashModal');
 const trashCloseBtn = document.getElementById('trashClose');
 const trashCancelBtn = document.getElementById('trashCancel');
@@ -251,6 +288,8 @@ const trashImg = document.getElementById('trashImg');
 const trashHandleLeft = document.getElementById('trashHandleLeft');
 const trashHandleRight = document.getElementById('trashHandleRight');
 const trashHint = document.getElementById('trashHint');
+const trashZoomInBtn = document.getElementById('trashZoomIn');
+const trashZoomOutBtn = document.getElementById('trashZoomOut');
 
 function syncCropAspectButtons() {
   if (!cropAspectBtns || cropAspectBtns.length === 0) return;
@@ -968,6 +1007,7 @@ const split3State = {
 // TrashImg state: one image under a fixed-height window with resizable width (from center)
 const trashState = {
   open: false,
+  mode: 'experimental', // 'fix' | 'experimental'
   storedName: null,
   url: null,
   natW: 0,
@@ -1497,13 +1537,16 @@ function setBusy(busy) {
 }
 
 function showResult(obj) {
-  if (!DEBUG_ENABLED || !result) {
-    // Do not show technical output to regular users.
-    return;
-  }
+  if (!result) return;
 
   try { result.hidden = false; } catch { /* ignore */ }
-  result.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+
+  const text = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+  if (!result.textContent) {
+    result.textContent = text;
+  } else {
+    result.textContent += "\n\n" + text;
+  }
 }
 
 function setMainPreviewFromItem(item) {
@@ -2630,6 +2673,34 @@ wireSplitUI();
 wireSplit3UI();
 wireTrashUI();
 
+async function deleteComposite(relativePath, tr) {
+  if (!relativePath) return;
+
+  try {
+    setBusy(true);
+    const res = await fetch('delete-composite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ relativePath })
+    });
+
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = text; }
+
+    if (!res.ok) {
+      showResult(data);
+      return;
+    }
+
+    if (tr) tr.remove();
+  } catch (e) {
+    showResult(String(e));
+  } finally {
+    setBusy(false);
+  }
+}
+
 async function loadComposites() {
   if (!compositesTbody) return [];
 
@@ -2669,9 +2740,26 @@ async function loadComposites() {
         tdImg.classList.add('empty');
       }
 
+      const tdDel = document.createElement('td');
+      tdDel.className = 'col-del';
+      if (rel) {
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'del-btn';
+        delBtn.title = 'Удалить результат';
+        delBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.3 5.7a1 1 0 0 0-1.4 0L12 10.6 7.1 5.7A1 1 0 1 0 5.7 7.1L10.6 12l-4.9 4.9a1 1 0 1 0 1.4 1.4L12 13.4l4.9 4.9a1 1 0 0 0 1.4-1.4L13.4 12l4.9-4.9a1 1 0 0 0 0-1.4z"/></svg>';
+        delBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          deleteComposite(rel, tr);
+        });
+        tdDel.appendChild(delBtn);
+      }
+
       tr.appendChild(tdDt);
       tr.appendChild(tdKind);
       tr.appendChild(tdImg);
+      tr.appendChild(tdDel);
 
       compositesTbody.appendChild(tr);
     }
@@ -2697,6 +2785,59 @@ function getPointerPosInTrashStage(e) {
 }
 
 const TRASH_ASPECT = 16 / 9; // окно 1920x1080
+const TRASH_TEMPLATE_W = 1920;
+const TRASH_TEMPLATE_H = 1080;
+const TRASH_WINDOW_PX = { x: 593, y: 79, w: 735, h: 922 };
+
+function getTrashWindowRectInCard() {
+  if (!trashCard) return { x: 0, y: 0, w: 0, h: 0 };
+  const cardRect = trashCard.getBoundingClientRect();
+  if (!cardRect.width || !cardRect.height) return { x: 0, y: 0, w: 0, h: 0 };
+
+  // В экспериментальном режиме окном считаем всю карточку.
+  if (trashState.mode !== 'fix') {
+    return { x: 0, y: 0, w: cardRect.width, h: cardRect.height };
+  }
+
+  // В режиме TrashFix окно строго соответствует прозрачному прямоугольнику в PNG-шаблоне.
+  const sx = cardRect.width / TRASH_TEMPLATE_W;
+  const sy = cardRect.height / TRASH_TEMPLATE_H;
+  const k = (sx + sy) / 2;
+
+  return {
+    x: TRASH_WINDOW_PX.x * k,
+    y: TRASH_WINDOW_PX.y * k,
+    w: TRASH_WINDOW_PX.w * k,
+    h: TRASH_WINDOW_PX.h * k
+  };
+}
+
+function clampTrashImageToWindow(img, win) {
+  if (!win || !img) return img;
+
+  const minX = win.x + win.w - img.w;
+  const maxX = win.x;
+  const minY = win.y + win.h - img.h;
+  const maxY = win.y;
+
+  let x = img.x;
+  let y = img.y;
+
+  if (minX <= maxX) {
+    x = Math.min(maxX, Math.max(minX, x));
+  } else {
+    // Если картинка меньше окна (теоретически) — ставим по центру.
+    x = (minX + maxX) / 2;
+  }
+
+  if (minY <= maxY) {
+    y = Math.min(maxY, Math.max(minY, y));
+  } else {
+    y = (minY + maxY) / 2;
+  }
+
+  return { ...img, x, y };
+}
 
 function layoutTrashWindowInitial() {
   if (!trashStage || !trashCard) return;
@@ -2737,7 +2878,7 @@ function updateTrashWindowLayout() {
   trashCard.style.top = `${top}px`;
 }
 
-function openTrashModal() {
+function openTrashModal(mode) {
   if (!trashModal || !trashStage || !trashCard || !trashImgViewport || !trashImg) return;
 
   if (!lastUpload || !lastUpload.storedName || !lastUpload.originalRelativePath) {
@@ -2748,8 +2889,11 @@ function openTrashModal() {
   }
 
   trashState.open = true;
+  trashState.mode = mode === 'fix' ? 'fix' : 'experimental';
   trashState.storedName = lastUpload.storedName;
-  const rel = lastUpload.previewRelativePath || lastUpload.originalRelativePath;
+  // Для TrashImg всегда используем ОРИГИНАЛ (upload/*), чтобы координаты кадра
+  // совпадали с координатами, по которым режем на бэкенде.
+  const rel = lastUpload.originalRelativePath;
   trashState.url = withCacheBust(rel, lastUpload.storedName);
 
   trashModal.hidden = false;
@@ -2774,24 +2918,28 @@ function openTrashModal() {
 
 function layoutTrashImageCover() {
   if (!trashCard || !trashImg || !trashState.natW || !trashState.natH) return;
-  const rect = trashCard.getBoundingClientRect();
-  const winW = rect.width;
-  const winH = rect.height;
+  const win = getTrashWindowRectInCard();
+  const winW = win.w;
+  const winH = win.h;
   if (!winW || !winH) return;
 
   // Вставляем пропорционально по высоте: высота окна = высота картинки.
   const scale = winH / trashState.natH;
   const w = trashState.natW * scale;
   const h = winH; // === trashState.natH * scale
-  const x = (winW - w) / 2;
-  const y = (winH - h) / 2;
 
-  trashState.img = { x, y, w, h };
+  const centerX = win.x + winW / 2;
+  const centerY = win.y + winH / 2;
+  const x0 = centerX - w / 2;
+  const y0 = centerY - h / 2;
 
-  trashImg.style.width = `${w}px`;
-  trashImg.style.height = `${h}px`;
-  trashImg.style.left = `${x}px`;
-  trashImg.style.top = `${y}px`;
+  const clamped = clampTrashImageToWindow({ x: x0, y: y0, w, h }, win);
+  trashState.img = clamped;
+
+  trashImg.style.width = `${clamped.w}px`;
+  trashImg.style.height = `${clamped.h}px`;
+  trashImg.style.left = `${clamped.x}px`;
+  trashImg.style.top = `${clamped.y}px`;
 }
 
 function closeTrashModal() {
@@ -2812,9 +2960,56 @@ function wireTrashUI() {
     trashToolBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      openTrashModal();
+      openTrashModal('experimental');
     });
   }
+
+      if (trashFixToolBtn) {
+        trashFixToolBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openTrashModal('fix');
+      });
+    }
+
+  const trashZoomByFactor = (factor) => {
+    if (!trashState.open || !trashCard || !trashImg || !trashState.img) return;
+    const rect = trashCard.getBoundingClientRect();
+    const win = getTrashWindowRectInCard();
+    const winW = win.w;
+    const winH = win.h;
+    if (!winW || !winH) return;
+
+    const img0 = trashState.img;
+    let f = factor;
+    // ограничиваем общий множитель, чтобы не улетать слишком далеко
+    f = Math.max(0.2, Math.min(5, f));
+
+    let w = img0.w * f;
+    let h = img0.h * f;
+
+    // минимальный масштаб: высота картинки не меньше высоты окна
+    const minScale = winH / img0.h;
+    if (f < minScale) {
+      w = img0.w * minScale;
+      h = img0.h * minScale;
+    }
+
+    const centerX = rect.left + win.x + winW / 2;
+    const centerY = rect.top + win.y + winH / 2;
+    const cx = centerX - rect.left;
+    const cy = centerY - rect.top;
+
+    const x0 = cx - (w / img0.w) * (centerX - (rect.left + img0.x));
+    const y0 = cy - (h / img0.h) * (centerY - (rect.top + img0.y));
+
+    const img1 = clampTrashImageToWindow({ x: x0, y: y0, w, h }, win);
+    trashState.img = img1;
+    trashImg.style.width = `${img1.w}px`;
+    trashImg.style.height = `${img1.h}px`;
+    trashImg.style.left = `${img1.x}px`;
+    trashImg.style.top = `${img1.y}px`;
+  };
 
   // Ctrl+0 — сброс масштаба фона до "по высоте окна"
   document.addEventListener('keydown', (e) => {
@@ -2836,6 +3031,22 @@ function wireTrashUI() {
   if (trashCloseBtn) trashCloseBtn.addEventListener('click', close);
   if (trashCancelBtn) trashCancelBtn.addEventListener('click', close);
 
+  if (trashZoomInBtn) {
+    trashZoomInBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      trashZoomByFactor(1.12);
+    });
+  }
+
+  if (trashZoomOutBtn) {
+    trashZoomOutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      trashZoomByFactor(0.9);
+    });
+  }
+
   trashModal.addEventListener('click', (e) => {
     const t = e.target;
     if (t && t.dataset && t.dataset.close) {
@@ -2845,6 +3056,7 @@ function wireTrashUI() {
 
   const onHandleDown = (side, e) => {
     if (!trashState.open) return;
+    if (trashState.mode === 'fix') return; // в режиме TrashFix нельзя менять ширину окна
     const p = getPointerPosInTrashStage(e);
     trashState.action = {
       type: 'window-resize',
@@ -2898,6 +3110,13 @@ function wireTrashUI() {
 
   // Перемещение/масштабирование изображения под окном (панорамирование + zoom)
   if (trashImgViewport) {
+    trashImgViewport.addEventListener('wheel', (e) => {
+      if (!trashState.open) return;
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.08 : 0.93;
+      trashZoomByFactor(factor);
+    });
+
     trashImgViewport.addEventListener('pointerdown', (e) => {
       if (!trashState.open) return;
       // не перехватываем, если клик по ручке окна
@@ -2905,10 +3124,11 @@ function wireTrashUI() {
       if (!trashCard) return;
 
       const rect = trashCard.getBoundingClientRect();
-      const winW = rect.width;
-      const winH = rect.height;
-      const cx = rect.left + winW / 2;
-      const cy = rect.top + winH / 2;
+      const win = getTrashWindowRectInCard();
+      const winW = win.w;
+      const winH = win.h;
+      const cx = rect.left + win.x + winW / 2;
+      const cy = rect.top + win.y + winH / 2;
 
       // проверяем, попали ли в край картинки (для зума)
       const img = trashState.img;
@@ -2949,36 +3169,28 @@ function wireTrashUI() {
         const dx = e.clientX - action.startPointerX;
         const dy = e.clientY - action.startPointerY;
 
-        const rect = trashCard.getBoundingClientRect();
-        const winW = rect.width;
-        const winH = rect.height;
+        const win = getTrashWindowRectInCard();
+        const img0 = trashState.img;
+        const tentative = {
+          x: action.startX + dx,
+          y: action.startY + dy,
+          w: img0.w,
+          h: img0.h
+        };
 
-        const img = trashState.img;
-        let x = action.startX + dx;
-        let y = action.startY + dy;
-        const w = img.w;
-        const h = img.h;
-
-        // не даём картинке "оторваться" от окна: всегда заполняет окно целиком
-        const minX = winW - w;
-        const maxX = 0;
-        const minY = winH - h;
-        const maxY = 0;
-        x = Math.min(maxX, Math.max(minX, x));
-        y = Math.min(maxY, Math.max(minY, y));
-
-        trashState.img.x = x;
-        trashState.img.y = y;
-        trashImg.style.left = `${x}px`;
-        trashImg.style.top = `${y}px`;
+        const img1 = clampTrashImageToWindow(tentative, win);
+        trashState.img = img1;
+        trashImg.style.left = `${img1.x}px`;
+        trashImg.style.top = `${img1.y}px`;
         return;
       }
 
       if (action.type === 'img-scale') {
         if (!trashCard) return;
         const rect = trashCard.getBoundingClientRect();
-        const winW = rect.width;
-        const winH = rect.height;
+        const win = getTrashWindowRectInCard();
+        const winW = win.w;
+        const winH = win.h;
         const img0 = action.startImg;
 
         const dx = e.clientX - action.startPointerX;
@@ -3001,14 +3213,15 @@ function wireTrashUI() {
         const cx = action.centerX - rect.left;
         const cy = action.centerY - rect.top;
 
-        const x = cx - (w / img0.w) * (action.centerX - (rect.left + img0.x));
-        const y = cy - (h / img0.h) * (action.centerY - (rect.top + img0.y));
+        const x0 = cx - (w / img0.w) * (action.centerX - (rect.left + img0.x));
+        const y0 = cy - (h / img0.h) * (action.centerY - (rect.top + img0.y));
 
-        trashState.img = { x, y, w, h };
-        trashImg.style.width = `${w}px`;
-        trashImg.style.height = `${h}px`;
-        trashImg.style.left = `${x}px`;
-        trashImg.style.top = `${y}px`;
+        const img1 = clampTrashImageToWindow({ x: x0, y: y0, w, h }, win);
+        trashState.img = img1;
+        trashImg.style.width = `${img1.w}px`;
+        trashImg.style.height = `${img1.h}px`;
+        trashImg.style.left = `${img1.x}px`;
+        trashImg.style.top = `${img1.y}px`;
         return;
       }
     });
@@ -3030,15 +3243,26 @@ function wireTrashUI() {
       if (!trashState.open || !trashState.storedName) return;
       if (!trashCard) return;
 
-      const rect = trashCard.getBoundingClientRect();
+      const win = getTrashWindowRectInCard();
+      const img = trashState.img;
+      if (!img || !trashState.natW || !trashState.natH || !win.w || !win.h) return;
+
+      // Переводим текущее положение/масштаб картинки в координаты ОРИГИНАЛА
+      // для прямоугольника, который соответствует окну шаблона.
+      const scale = img.w / trashState.natW;
+      if (!scale || !isFinite(scale)) return;
+
+      const cropX = (win.x - img.x) / scale;
+      const cropY = (win.y - img.y) / scale;
+      const cropW = win.w / scale;
+      const cropH = win.h / scale;
+
       const req = {
         storedName: trashState.storedName,
-        imgX: trashState.img.x,
-        imgY: trashState.img.y,
-        imgW: trashState.img.w,
-        imgH: trashState.img.h,
-        viewW: rect.width,
-        viewH: rect.height
+        x: cropX,
+        y: cropY,
+        w: cropW,
+        h: cropH
       };
 
       try {

@@ -516,8 +516,8 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseAntiforgery();
 
-// PNG-оверлей для TrashImg (например, 1920x1080 шаблон окна)
-var trashOverlayPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot", "trashimg-overlay.png");
+// PNG-шаблон для TrashImg (готовая карточка с рамкой/тенью)
+var trashOverlayPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot", "jmaka-template-trash-001.png");
 
 app.MapGet("/history", async Task<IResult> (CancellationToken ct) =>
 {
@@ -532,6 +532,66 @@ app.MapGet("/composites", async Task<IResult> (CancellationToken ct) =>
     var items = await ReadCompositesAsync(compositesPath, compositesLock, ct);
     return Results.Ok(items.OrderByDescending(x => x.CreatedAt).Take(200));
 });
+
+app.MapPost("/delete-composite", async Task<IResult> (CompositeDeleteRequest req, CancellationToken ct) =>
+{
+    await PruneExpiredAsync(ct);
+
+    if (string.IsNullOrWhiteSpace(req.RelativePath))
+    {
+        return Results.BadRequest(new { error = "relativePath is required" });
+    }
+
+    // Нормализуем путь (слеэши) и работаем по имени файла.
+    var rel = req.RelativePath.Replace('\\', '/');
+    var fileName = Path.GetFileName(rel);
+    if (string.IsNullOrWhiteSpace(fileName))
+    {
+        return Results.BadRequest(new { error = "invalid relativePath" });
+    }
+
+    var items = await ReadCompositesAsync(compositesPath, compositesLock, ct);
+    if (items.Count == 0)
+    {
+        return Results.NotFound(new { error = "not found" });
+    }
+
+    // Ищем по точному относительному пути или по имени файла на всякий случай.
+    var toRemove = items.FirstOrDefault(x =>
+        x != null &&
+        (
+            string.Equals(x.RelativePath.Replace('\\', '/'), rel, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Path.GetFileName(x.RelativePath), fileName, StringComparison.OrdinalIgnoreCase)
+        ));
+
+    if (toRemove is null)
+    {
+        return Results.NotFound(new { error = "not found" });
+    }
+
+    var kept = items.Where(x => !ReferenceEquals(x, toRemove)).ToList();
+    await WriteCompositesAsync(compositesPath, compositesLock, kept, ct);
+
+    try
+    {
+        var abs = GetCompositeAbsolutePath(toRemove);
+        if (!string.IsNullOrWhiteSpace(abs))
+        {
+            TryDeleteFile(abs);
+        }
+    }
+    catch
+    {
+        // игнорируем ошибки удаления файла на диске
+    }
+
+    return Results.Ok(new { ok = true, relativePath = toRemove.RelativePath });
+})
+.DisableAntiforgery()
+.Accepts<CompositeDeleteRequest>("application/json")
+.Produces(StatusCodes.Status200OK)
+.Produces(StatusCodes.Status400BadRequest)
+.Produces(StatusCodes.Status404NotFound);
 
 app.MapPost("/delete", async Task<IResult> (DeleteRequest req, CancellationToken ct) =>
 {
@@ -1130,37 +1190,115 @@ app.MapPost("/trashimg", async Task<IResult> (TrashRequest req, CancellationToke
         return Results.NotFound(new { error = "original file not found" });
     }
 
-    const int outW = 1920;
-    const int outH = 1080;
-
     try
     {
-        using var output = new Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(
-            outW, outH, new SixLabors.ImageSharp.PixelFormats.Rgba32(0, 0, 0, 255));
+        // 1) Кадр: режем исходник по прямоугольнику из UI (в координатах оригинала).
+        using var src = await Image.LoadAsync<SixLabors.ImageSharp.PixelFormats.Rgba32>(originalPath, ct);
 
-        // Рисуем фон-картинку по параметрам из UI
-        using (var src = await Image.LoadAsync<SixLabors.ImageSharp.PixelFormats.Rgba32>(originalPath, ct))
+        var imgW = src.Width;
+        var imgH = src.Height;
+        if (imgW <= 0 || imgH <= 0)
         {
-            var scaleUiToOut = outW / req.ViewW;
-            var drawW = (int)Math.Round(req.ImgW * scaleUiToOut);
-            var drawH = (int)Math.Round(req.ImgH * scaleUiToOut);
-            var destX = (int)Math.Round(req.ImgX * scaleUiToOut);
-            var destY = (int)Math.Round(req.ImgY * scaleUiToOut);
-
-            src.Mutate(p => p.Resize(drawW, drawH));
-            output.Mutate(p => p.DrawImage(src, new Point(destX, destY), 1f));
+            return Results.BadRequest(new { error = "invalid image" });
         }
 
-        // Накладываем оверлей, если PNG шаблон доступен
+        var x = (int)Math.Round(req.X);
+        var y = (int)Math.Round(req.Y);
+        var w = (int)Math.Round(req.W);
+        var h = (int)Math.Round(req.H);
+
+        if (w <= 0 || h <= 0)
+        {
+            return Results.BadRequest(new { error = "invalid crop rect" });
+        }
+
+        if (x < 0) x = 0;
+        if (y < 0) y = 0;
+        if (x >= imgW) x = imgW - 1;
+        if (y >= imgH) y = imgH - 1;
+
+        if (x + w > imgW) w = imgW - x;
+        if (y + h > imgH) h = imgH - y;
+
+        if (w <= 0 || h <= 0)
+        {
+            return Results.BadRequest(new { error = "empty crop after clamp" });
+        }
+
+        using var cropped = src.Clone(ctx => ctx.Crop(new Rectangle(x, y, w, h)));
+
+        // 2) Готовим полотно под PNG-шаблон.
+        SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>? baseOverlay = null;
+        int outW;
+        int outH;
+
         if (File.Exists(trashOverlayPath))
         {
-            using var overlay = await Image.LoadAsync<SixLabors.ImageSharp.PixelFormats.Rgba32>(trashOverlayPath, ct);
-            if (overlay.Width != outW || overlay.Height != outH)
-            {
-                overlay.Mutate(p => p.Resize(outW, outH));
-            }
+            baseOverlay = await Image.LoadAsync<SixLabors.ImageSharp.PixelFormats.Rgba32>(trashOverlayPath, ct);
+            outW = baseOverlay.Width;
+            outH = baseOverlay.Height;
+        }
+        else
+        {
+            // Fallback: если PNG исчез — рендерим простую карточку 1920x1080.
+            outW = 1920;
+            outH = 1080;
+        }
 
-            output.Mutate(p => p.DrawImage(overlay, new Point(0, 0), 1f));
+        // Область, в которую должен вписаться кадр внутри шаблона — внутреннее окно PNG.
+        // Координаты окна заданы в пикселях для исходного PNG 1920x1080:
+        // windowX = 593, windowY = 79, windowW = 735, windowH = 922.
+        const double templateW = 1920.0;
+        const double templateH = 1080.0;
+        const double windowPxX = 593.0;
+        const double windowPxY = 79.0;
+        const double windowPxW = 735.0;
+        const double windowPxH = 922.0;
+
+        // Масштабируем геометрию окна под фактический размер PNG (outW/outH).
+        var scaleX = outW / templateW;
+        var scaleY = outH / templateH;
+        var k = (scaleX + scaleY) / 2.0;
+
+        var winX = windowPxX * k;
+        var winY = windowPxY * k;
+        var winW = windowPxW * k;
+        var winH = windowPxH * k;
+
+        // Масштабируем кроп так, чтобы он заполнил окно без искажений.
+        var scaleToHeight = winH / h;
+        var scaleToWidth = winW / w;
+        var scaleCrop = (scaleToHeight + scaleToWidth) / 2.0;
+
+        var targetW = (int)Math.Round(w * scaleCrop);
+        var targetH = (int)Math.Round(h * scaleCrop);
+
+        // Если после округления отличия от окна маленькие — приравниваем к размеру окна.
+        if (Math.Abs(targetW - winW) <= 2 && Math.Abs(targetH - winH) <= 2)
+        {
+            targetW = (int)Math.Round(winW);
+            targetH = (int)Math.Round(winH);
+        }
+
+        if (targetW < 1) targetW = 1;
+        if (targetH < 1) targetH = 1;
+
+        cropped.Mutate(p => p.Resize(targetW, targetH));
+
+        var bgColor = new SixLabors.ImageSharp.PixelFormats.Rgba32(243, 244, 246, 255);
+        using var output = new Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(outW, outH, bgColor);
+
+        // Выравниваем отмасштабированный кадр по окну внутри PNG.
+        var dstX = (int)Math.Round(winX + (winW - targetW) / 2.0);
+        var dstY = (int)Math.Round(winY + (winH - targetH) / 2.0);
+
+        // Сначала рисуем кропнутую картинку, затем поверх неё — PNG-шаблон
+        output.Mutate(p => p.DrawImage(cropped, new Point(dstX, dstY), 1f));
+
+        if (baseOverlay != null)
+        {
+            output.Mutate(p => p.DrawImage(baseOverlay, new Point(0, 0), 1f));
+            baseOverlay.Dispose();
         }
 
         var fileName = MakeCompositeFileName();
@@ -1538,12 +1676,10 @@ record Split3Request(
 );
 record TrashRequest(
     string StoredName,
-    double ImgX,
-    double ImgY,
-    double ImgW,
-    double ImgH,
-    double ViewW,
-    double ViewH
+    double X,
+    double Y,
+    double W,
+    double H
 );
 record CompositeHistoryItem(
     string Kind,
@@ -1562,3 +1698,5 @@ record UploadHistoryItem(
     int? ImageHeight,
     Dictionary<int, string> Resized
 );
+
+record CompositeDeleteRequest(string RelativePath);
