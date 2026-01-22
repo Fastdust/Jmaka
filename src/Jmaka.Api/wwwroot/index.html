@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Jmaka 0.1.3</title>
-  <link rel="stylesheet" href="app.css?v=0.1.3" />
+  <title>Jmaka 0.1.4</title>
+  <link rel="stylesheet" href="app.css?v=0.1.4" />
 </head>
 <body>
   <main class="page">
@@ -26,15 +26,15 @@
       </button>
 
       <div class="preview-wrap">
-        <div class="preview-title">Jmaka 0.1.3</div>
+        <div class="preview-title">Jmaka 0.1.4</div>
 
         <div class="main-controls" aria-label="Панель управления">
           <div class="tool-buttons" aria-label="Инструменты" hidden>
             <button id="splitToolBtn" class="btn tool-btn" type="button">Split</button>
             <button id="split3ToolBtn" class="btn tool-btn" type="button">Split3</button>
             <button id="trashFixToolBtn" class="btn tool-btn" type="button">OknoFix</button>
-            <button id="cropToolBtn" class="btn tool-btn" type="button">Crop</button>
             <button id="trashToolBtn" class="btn tool-btn" type="button">OknoScale</button>
+            <button id="cropToolBtn" class="btn tool-btn" type="button">Crop</button>
           </div>
 
           <div id="sizeButtons" class="size-buttons" aria-label="Размеры" hidden>
@@ -207,10 +207,10 @@
     </div>
   </div>
 
-  <!-- TrashImg -->
+  <!-- TrashImg / OknoFix -->
   <div id="trashModal" class="modal" hidden>
     <div class="modal-backdrop" data-close="1"></div>
-    <div class="modal-card trash-modal-card" role="dialog" aria-modal="true" aria-label="TrashImg">
+    <div class="modal-card trash-modal-card" role="dialog" aria-modal="true" aria-label="OknoFix">
       <div class="modal-header">
         <div class="modal-title-wrap">
           <div class="modal-title">OknoFix (1 изображение → вертикальная карточка)</div>
@@ -222,20 +222,19 @@
       </div>
       <div class="modal-body">
         <div class="trash-stage-wrap">
-          <div id="trashStage" class="trash-stage" aria-label="TrashImg шаблон">
+          <div id="trashStage" class="trash-stage" aria-label="OknoFix шаблон">
             <div id="trashCard" class="trash-card">
               <div id="trashImgViewport" class="trash-img-viewport">
                 <img id="trashImg" class="trash-img" alt="" />
               </div>
               <!-- PNG-шаблон всегда поверх картинки, чтобы превью совпадало с итоговым видом -->
               <div class="trash-overlay" aria-hidden="true"></div>
-              <!-- Ручки изменения ширины больше не используются (окно фиксировано) -->
             </div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <div id="trashHint" class="modal-hint">Выберите строку в таблице файлов, затем откройте Trash.</div>
+        <div id="trashHint" class="modal-hint">Выберите строку в таблице файлов, затем откройте OknoFix.</div>
         <div class="modal-actions">
           <div class="trash-zoom-controls" aria-label="Масштаб картинки подложки">
             <button id="trashZoomOut" class="btn trash-zoom-btn" type="button">−</button>
@@ -243,6 +242,46 @@
           </div>
           <button id="trashCancel" class="btn" type="button">Закрыть</button>
           <button id="trashApply" class="btn primary" type="button" disabled>Сделать</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OknoScale -->
+  <div id="oknoScaleModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="1"></div>
+    <div class="modal-card trash-modal-card" role="dialog" aria-modal="true" aria-label="OknoScale">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-title">OknoScale (1 изображение → вертикальная карточка)</div>
+          <div class="modal-sub">
+            <span class="modal-subtext">Окно фиксировано по высоте и центрировано, ширину можно менять симметрично от центра.</span>
+          </div>
+        </div>
+        <button id="oknoScaleClose" class="modal-x" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="trash-stage-wrap">
+          <div id="oknoScaleStage" class="trash-stage" aria-label="OknoScale шаблон">
+            <div id="oknoScaleCard" class="trash-card">
+              <div id="oknoScaleImgViewport" class="trash-img-viewport">
+                <img id="oknoScaleImg" class="trash-img" alt="" />
+              </div>
+              <div id="oknoScaleHandleLeft" class="oknoscale-handle left" data-side="left"></div>
+              <div id="oknoScaleHandleRight" class="oknoscale-handle right" data-side="right"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div id="oknoScaleHint" class="modal-hint">Выберите строку в таблице файлов, затем откройте OknoScale.</div>
+        <div class="modal-actions">
+          <div class="trash-zoom-controls" aria-label="Масштаб картинки подложки">
+            <button id="oknoScaleZoomOut" class="btn trash-zoom-btn" type="button">−</button>
+            <button id="oknoScaleZoomIn" class="btn trash-zoom-btn" type="button">+</button>
+          </div>
+          <button id="oknoScaleCancel" class="btn" type="button">Закрыть</button>
+          <button id="oknoScaleApply" class="btn primary" type="button" disabled>Сделать</button>
         </div>
       </div>
     </div>
@@ -426,6 +465,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=0.1.3"></script>
+  <script src="app.js?v=0.1.4"></script>
 </body>
 </html>

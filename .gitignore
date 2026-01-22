@@ -61,6 +61,10 @@ src/Jmaka.Api/data/history.json
 src/Jmaka.Api/data/composites.json
 !src/Jmaka.Api/data/.gitkeep
 
+# OknoFix/OknoScale composites (runtime files)
+src/Jmaka.Api/trashimg/*
+!src/Jmaka.Api/trashimg/.gitkeep
+
 # Build outputs
 /dist/
 /build/

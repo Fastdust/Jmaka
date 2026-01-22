@@ -140,7 +140,8 @@ string? GetCompositeAbsolutePath(CompositeHistoryItem it)
         return Path.Combine(split3Dir, fileName);
     }
 
-    if (string.Equals(it.Kind, "trashimg", StringComparison.OrdinalIgnoreCase))
+    if (string.Equals(it.Kind, "trashimg", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(it.Kind, "oknoscale", StringComparison.OrdinalIgnoreCase))
     {
         return Path.Combine(trashDir, fileName);
     }
@@ -1169,7 +1170,7 @@ app.MapPost("/crop", async Task<IResult> (CropRequest req, CancellationToken ct)
 .Produces(StatusCodes.Status400BadRequest)
 .Produces(StatusCodes.Status404NotFound);
 
-app.MapPost("/trashimg", async Task<IResult> (TrashRequest req, CancellationToken ct) =>
+app.MapPost("/trashimg", async Task<IResult> (WindowCropRequest req, CancellationToken ct) =>
 {
     await PruneExpiredAsync(ct);
 
@@ -1322,7 +1323,176 @@ app.MapPost("/trashimg", async Task<IResult> (TrashRequest req, CancellationToke
     }
 })
 .DisableAntiforgery()
-.Accepts<TrashRequest>("application/json")
+.Accepts<WindowCropRequest>("application/json")
+.Produces(StatusCodes.Status200OK)
+.Produces(StatusCodes.Status400BadRequest)
+.Produces(StatusCodes.Status404NotFound);
+
+app.MapPost("/oknoscale", async Task<IResult> (WindowCropRequest req, CancellationToken ct) =>
+{
+    await PruneExpiredAsync(ct);
+
+    if (string.IsNullOrWhiteSpace(req.StoredName))
+    {
+        return Results.BadRequest(new { error = "storedName is required" });
+    }
+
+    var storedName = Path.GetFileName(req.StoredName);
+    if (!string.Equals(storedName, req.StoredName, StringComparison.Ordinal))
+    {
+        return Results.BadRequest(new { error = "invalid storedName" });
+    }
+
+    var originalPath = Path.Combine(uploadDir, storedName);
+    if (!File.Exists(originalPath))
+    {
+        return Results.NotFound(new { error = "original file not found" });
+    }
+
+    try
+    {
+        using var src = await Image.LoadAsync<SixLabors.ImageSharp.PixelFormats.Rgba32>(originalPath, ct);
+
+        var imgW = src.Width;
+        var imgH = src.Height;
+        if (imgW <= 0 || imgH <= 0)
+        {
+            return Results.BadRequest(new { error = "invalid image" });
+        }
+
+        var x = (int)Math.Round(req.X);
+        var y = (int)Math.Round(req.Y);
+        var w = (int)Math.Round(req.W);
+        var h = (int)Math.Round(req.H);
+
+        if (w <= 0 || h <= 0)
+        {
+            return Results.BadRequest(new { error = "invalid crop rect" });
+        }
+
+        if (x < 0) x = 0;
+        if (y < 0) y = 0;
+        if (x >= imgW) x = imgW - 1;
+        if (y >= imgH) y = imgH - 1;
+
+        if (x + w > imgW) w = imgW - x;
+        if (y + h > imgH) h = imgH - y;
+
+        if (w <= 0 || h <= 0)
+        {
+            return Results.BadRequest(new { error = "empty crop after clamp" });
+        }
+
+        using var cropped = src.Clone(ctx => ctx.Crop(new Rectangle(x, y, w, h)));
+
+        const int outW = 1920;
+        const int outH = 1080;
+
+        // Масштабируем кроп в центральное окно с однотонным фоном.
+        var bgColor = new SixLabors.ImageSharp.PixelFormats.Rgba32(243, 244, 246, 255);
+        using var output = new Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(outW, outH, bgColor);
+
+        // Максимальный размер центрального окна ~90% от кадра, без искажений.
+        var maxContentW = outW * 0.9;
+        var maxContentH = outH * 0.9;
+        var scaleToW = maxContentW / w;
+        var scaleToH = maxContentH / h;
+        var scale = Math.Min(scaleToW, scaleToH);
+        if (scale <= 0) scale = 1;
+
+        var targetW = (int)Math.Round(w * scale);
+        var targetH = (int)Math.Round(h * scale);
+        if (targetW < 1) targetW = 1;
+        if (targetH < 1) targetH = 1;
+
+        cropped.Mutate(p => p.Resize(targetW, targetH));
+
+        var dstX = (outW - targetW) / 2;
+        var dstY = (outH - targetH) / 2;
+
+        // Рисуем кроп по центру
+        output.Mutate(p => p.DrawImage(cropped, new Point(dstX, dstY), 1f));
+
+        // Скругляем только углы центрального окна (там, где лежит картинка), а не всю карточку.
+        const int baseCornerRadius = 8; // ещё в ~2 раза меньше
+        var r = Math.Min(baseCornerRadius, Math.Min(targetW, targetH) / 2);
+        var r2 = r * r;
+
+        var left = dstX;
+        var right = dstX + targetW - 1;
+        var top = dstY;
+        var bottom = dstY + targetH - 1;
+        var cxLeft = left + r;
+        var cxRight = right - r;
+        var cyTop = top + r;
+        var cyBottom = bottom - r;
+
+        output.ProcessPixelRows(accessor =>
+        {
+            for (var yy = top; yy <= bottom; yy++)
+            {
+                var row = accessor.GetRowSpan(yy);
+                for (var xx = left; xx <= right; xx++)
+                {
+                    bool outside = false;
+
+                    if (xx < cxLeft && yy < cyTop)
+                    {
+                        var dx = cxLeft - xx;
+                        var dy = cyTop - yy;
+                        outside = dx * dx + dy * dy > r2;
+                    }
+                    else if (xx > cxRight && yy < cyTop)
+                    {
+                        var dx = xx - cxRight;
+                        var dy = cyTop - yy;
+                        outside = dx * dx + dy * dy > r2;
+                    }
+                    else if (xx < cxLeft && yy > cyBottom)
+                    {
+                        var dx = cxLeft - xx;
+                        var dy = yy - cyBottom;
+                        outside = dx * dx + dy * dy > r2;
+                    }
+                    else if (xx > cxRight && yy > cyBottom)
+                    {
+                        var dx = xx - cxRight;
+                        var dy = yy - cyBottom;
+                        outside = dx * dx + dy * dy > r2;
+                    }
+
+                    if (outside)
+                    {
+                        // Затираем угол обратно цветом фона, чтобы углы картинки стали визуально скруглёнными.
+                        row[xx] = bgColor;
+                    }
+                }
+            }
+        });
+
+        // PNG, чтобы сохранить аккуратные края центрального окна.
+        var createdAt = DateTimeOffset.UtcNow;
+        var fileName = $"{createdAt:yyyyMMdd-HHmmss-fff}-{Guid.NewGuid():N}.png";
+        var outAbsolutePath = Path.Combine(trashDir, fileName);
+        var relPath = $"trashimg/{fileName}";
+
+        await SaveImageWithSafeTempAsync(output, outAbsolutePath, ct);
+
+        await AppendCompositeAsync(
+            compositesPath,
+            compositesLock,
+            new CompositeHistoryItem("oknoscale", createdAt, relPath, new[] { storedName }),
+            ct);
+
+        return Results.Ok(new { ok = true, kind = "oknoscale", createdAt, relativePath = relPath });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+})
+.DisableAntiforgery()
+.Accepts<WindowCropRequest>("application/json")
 .Produces(StatusCodes.Status200OK)
 .Produces(StatusCodes.Status400BadRequest)
 .Produces(StatusCodes.Status404NotFound);
@@ -1674,7 +1844,7 @@ record Split3Request(
     SplitViewRect B,
     SplitViewRect C
 );
-record TrashRequest(
+record WindowCropRequest(
     string StoredName,
     double X,
     double Y,

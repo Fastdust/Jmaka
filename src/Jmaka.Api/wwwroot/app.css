@@ -136,8 +136,8 @@ html, body {
 }
 
 .tool-btn {
-  width: 72px;
-  padding: 6px 8px;
+  padding: 6px 12px;
+  min-width: 72px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: rgba(17, 24, 39, 0.75);
@@ -145,6 +145,10 @@ html, body {
   cursor: pointer;
   font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
 }
 
 .tool-btn:hover {
@@ -315,6 +319,31 @@ html, body {
 
 /* .trash-handle (старые ручки изменения ширины) больше не используются */
 
+.oknoscale-handle {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 64px;
+  margin-top: -32px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.95);
+  cursor: ew-resize;
+  opacity: 0.9;
+  z-index: 2;
+}
+
+.oknoscale-handle.left {
+  left: -5px;
+}
+
+.oknoscale-handle.right {
+  right: -5px;
+}
+
+.trash-stage:hover .oknoscale-handle {
+  opacity: 1;
+}
+
 .trash-zoom-controls {
   display: inline-flex;
   align-items: center;
@@ -434,11 +463,32 @@ html, body {
 }
 
 .col-comp {
-  width: 92px;
+  width: 110px;
 }
 
 .col-del {
   width: 36px;
+}
+
+/* Уплотняем правую (composites) таблицу, чтобы не было горизонтальной прокрутки */
+.composites-wrap .col-dt {
+  width: 130px;
+}
+
+.composites-wrap .col-kind {
+  width: 60px;
+}
+
+.composites-wrap .col-comp {
+  width: 80px;
+}
+
+.composites-wrap .col-del {
+  width: 30px;
+}
+
+.composites-wrap .table-wrap {
+  overflow-x: hidden;
 }
 
 .del-btn {
