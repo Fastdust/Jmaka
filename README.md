@@ -126,6 +126,34 @@ curl -L -o ~/jmaka.tar.gz \
 - `JMAKA_STORAGE_ROOT` — куда писать upload/resized/preview/data (скрипт ставит в `/var/www/jmaka/<name>/storage`)
 - `JMAKA_BASE_PATH` — base-path для подпапки (например `/jmaka`), `/` = корень
 
+### Обновление существующего инстанса (update-instance.sh)
+Если Jmaka уже установлен через `install.sh` и работает как systemd-сервис `jmaka-<name>`, обновление делается отдельным скриптом:
+
+1. Скопировать новый архив с релиза на сервер, например:
+   ```bash
+   cd ~
+   curl -L -o jmaka.tar.gz \
+     https://github.com/Fastdust/Jmaka/releases/latest/download/jmaka-linux-x64.tar.gz
+   ```
+
+2. Запустить апдейтер из корня репозитория **или** после скачивания `update-instance.sh`:
+   ```bash
+   # если репозиторий уже на сервере
+   sudo bash deploy/ubuntu24/update-instance.sh
+
+   # либо скачать скрипт отдельно и запустить
+   curl -L -o ~/jmaka-update.sh \
+     https://raw.githubusercontent.com/Fastdust/Jmaka/main/deploy/ubuntu24/update-instance.sh
+   sudo bash ~/jmaka-update.sh
+   ```
+
+Скрипт сам:
+- найдёт все `jmaka-*.service` и покажет для каждого appDir, порт, base-path и текущую версию;
+- даст выбрать один инстанс или все сразу;
+- спросит путь к архиву (по умолчанию `~/jmaka.tar.gz`);
+- остановит выбранный сервис(ы), сделает бэкап каталога `app` → `app.bak-YYYYMMDD-HHMMSS`;
+- очистит `app`, распакует туда новый архив, выставит права и перезапустит сервис(ы).
+
 ## Windows (локальные тесты)
 ### Запуск
 - `dotnet run --project src/Jmaka.Api --launch-profile http`
