@@ -285,8 +285,9 @@ const trashStage = document.getElementById('trashStage');
 const trashCard = document.getElementById('trashCard');
 const trashImgViewport = document.getElementById('trashImgViewport');
 const trashImg = document.getElementById('trashImg');
-const trashHandleLeft = document.getElementById('trashHandleLeft');
-const trashHandleRight = document.getElementById('trashHandleRight');
+// Ручки изменения ширины окна больше не используются (окно фиксировано)
+const trashHandleLeft = null;
+const trashHandleRight = null;
 const trashHint = document.getElementById('trashHint');
 const trashZoomInBtn = document.getElementById('trashZoomIn');
 const trashZoomOutBtn = document.getElementById('trashZoomOut');
@@ -2900,7 +2901,7 @@ function openTrashModal(mode) {
   if (trashApplyBtn) trashApplyBtn.disabled = true;
 
   if (trashHint) {
-    trashHint.textContent = 'Потяните за края окна, чтобы изменить ширину.';
+    trashHint.textContent = 'Двигайте и масштабируйте картинку под окном.';
   }
 
   layoutTrashWindowInitial();
@@ -2964,13 +2965,13 @@ function wireTrashUI() {
     });
   }
 
-      if (trashFixToolBtn) {
-        trashFixToolBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        openTrashModal('fix');
-      });
-    }
+  if (trashFixToolBtn) {
+    trashFixToolBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openTrashModal('fix');
+    });
+  }
 
   const trashZoomByFactor = (factor) => {
     if (!trashState.open || !trashCard || !trashImg || !trashState.img) return;
@@ -3054,59 +3055,7 @@ function wireTrashUI() {
     }
   });
 
-  const onHandleDown = (side, e) => {
-    if (!trashState.open) return;
-    if (trashState.mode === 'fix') return; // в режиме TrashFix нельзя менять ширину окна
-    const p = getPointerPosInTrashStage(e);
-    trashState.action = {
-      type: 'window-resize',
-      side,
-      startX: p.x,
-      startW: trashState.window.w
-    };
-    try { e.target.setPointerCapture(e.pointerId); } catch { /* ignore */ }
-    e.preventDefault();
-  };
-
-  if (trashHandleLeft) {
-    trashHandleLeft.addEventListener('pointerdown', (e) => onHandleDown('left', e));
-  }
-  if (trashHandleRight) {
-    trashHandleRight.addEventListener('pointerdown', (e) => onHandleDown('right', e));
-  }
-
-  // изменение только ширины окна, высота фиксированная
-  trashStage.addEventListener('pointermove', (e) => {
-    if (!trashState.open || !trashState.action || trashState.action.type !== 'window-resize') return;
-    const p = getPointerPosInTrashStage(e);
-    const { side, startX, startW } = trashState.action;
-    let half = startW / 2;
-    const dx = p.x - startX;
-    if (side === 'left') {
-      half -= dx; // тянем влево/вправо, ширина меняется симметрично
-    } else {
-      half += dx;
-    }
-
-    const stageRect = trashStage.getBoundingClientRect();
-    const minHalf = 40;
-    const maxHalf = Math.max(minHalf, stageRect.width * 0.48);
-    half = Math.max(minHalf, Math.min(maxHalf, half));
-
-    trashState.window.w = half * 2;
-    // ВЫСОТА НЕ МЕНЯЕТСЯ, остаётся той же, что и была при инициализации
-
-    updateTrashWindowLayout();
-  });
-
-  const endResize = (e) => {
-    if (!trashState.action || trashState.action.type !== 'window-resize') return;
-    trashState.action = null;
-    try { e.target.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-  };
-
-  trashStage.addEventListener('pointerup', endResize);
-  trashStage.addEventListener('pointercancel', endResize);
+  // Ручки изменения ширины окна больше не используются, окно фиксировано.
 
   // Перемещение/масштабирование изображения под окном (панорамирование + zoom)
   if (trashImgViewport) {

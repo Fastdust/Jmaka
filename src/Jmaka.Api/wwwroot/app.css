@@ -313,19 +313,7 @@ html, body {
   /* размеры задаём через JS, чтобы контролировать zoom */
 }
 
-.trash-handle {
-  position: absolute;
-  top: 50%;
-  width: 10px;
-  height: 64px;
-  margin-top: -32px;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.95);
-  cursor: ew-resize;
-  opacity: 0.9;
-  z-index: 2; /* поверх оверлея */
-  display: none; /* ручки больше не нужны визуально */
-}
+/* .trash-handle (старые ручки изменения ширины) больше не используются */
 
 .trash-zoom-controls {
   display: inline-flex;
@@ -337,30 +325,6 @@ html, body {
 .trash-zoom-btn {
   min-width: 32px;
   padding-inline: 6px;
-}
-
-.trash-handle.left {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-right: auto;
-}
-
-.trash-zoom-btn {
-  min-width: 32px;
-  padding-inline: 6px;
-}
-
-.trash-handle.left {
-  left: -5px;
-}
-
-.trash-handle.right {
-  right: -5px;
-}
-
-.trash-stage:hover .trash-handle {
-  opacity: 1;
 }
 
 .help-card {

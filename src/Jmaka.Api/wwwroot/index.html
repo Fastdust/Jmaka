@@ -32,7 +32,7 @@
           <div class="tool-buttons" aria-label="Инструменты" hidden>
             <button id="splitToolBtn" class="btn tool-btn" type="button">Split</button>
             <button id="split3ToolBtn" class="btn tool-btn" type="button">Split3</button>
-            <button id="trashFixToolBtn" class="btn tool-btn" type="button">TrashFix</button>
+            <button id="trashFixToolBtn" class="btn tool-btn" type="button">OknoFix</button>
             <button id="cropToolBtn" class="btn tool-btn" type="button">Crop</button>
             <button id="trashToolBtn" class="btn tool-btn" type="button">Trash experimental</button>
           </div>
@@ -213,9 +213,9 @@
     <div class="modal-card trash-modal-card" role="dialog" aria-modal="true" aria-label="TrashImg">
       <div class="modal-header">
         <div class="modal-title-wrap">
-          <div class="modal-title">TrashImg (1 изображение → вертикальная карточка)</div>
+          <div class="modal-title">OknoFix (1 изображение → вертикальная карточка)</div>
           <div class="modal-sub">
-            <span class="modal-subtext">Окно фиксированной высоты. Ширину можно менять симметрично от центра, изображение под окном.</span>
+            <span class="modal-subtext">Окно и рамка фиксированы по шаблону. Двигайте и масштабируйте картинку под окном.</span>
           </div>
         </div>
         <button id="trashClose" class="modal-x" type="button" aria-label="Закрыть">×</button>
@@ -229,8 +229,7 @@
               </div>
               <!-- PNG-шаблон всегда поверх картинки, чтобы превью совпадало с итоговым видом -->
               <div class="trash-overlay" aria-hidden="true"></div>
-              <div id="trashHandleLeft" class="trash-handle left" data-side="left"></div>
-              <div id="trashHandleRight" class="trash-handle right" data-side="right"></div>
+              <!-- Ручки изменения ширины больше не используются (окно фиксировано) -->
             </div>
           </div>
         </div>
@@ -243,7 +242,7 @@
             <button id="trashZoomIn" class="btn trash-zoom-btn" type="button">+</button>
           </div>
           <button id="trashCancel" class="btn" type="button">Закрыть</button>
-          <button id="trashApply" class="btn primary" type="button" disabled>Сделать (позже)</button>
+          <button id="trashApply" class="btn primary" type="button" disabled>Сделать</button>
         </div>
       </div>
     </div>
@@ -408,7 +407,7 @@
           <li><strong>Crop</strong> — кадрирование исходника с выбором пропорций (1:1, 2:3, 16:9).</li>
           <li><strong>Split</strong> — две картинки → одна 1280×720, белая полоса 7px по центру.</li>
           <li><strong>Split3</strong> — три картинки → одна 1280×720, две белые полосы 7px.</li>
-          <li><strong>TrashFix</strong> — вертикальная карточка по строгому PNG-шаблону:
+          <li><strong>OknoFix</strong> — вертикальная карточка по строгому PNG-шаблону:
             <ul>
               <li>режим фиксированного окна (как на исходном PNG);</li>
               <li>картинка подложки двигается мышью и масштабируется пропорционально;</li>
