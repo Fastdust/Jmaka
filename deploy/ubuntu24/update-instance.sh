@@ -44,10 +44,11 @@ for svc_name in "${UNIT_NAMES[@]}"; do
   # Read Environment= lines from the unit file
   env_lines="$(grep -E '^Environment=' "$uf" || true)"
 
-  storage_root="$(printf '%s\n' "$env_lines" | grep -m1 'JMAKA_STORAGE_ROOT=' || true)"
-  storage_root="${storage_root#*JMAKA_STORAGE_ROOT=}"
-  storage_root="${storage_root%"}"""     # strip trailing quote if present
-  storage_root="${storage_root#"""}"      # strip leading quote if present
+  # Extract JMAKA_STORAGE_ROOT value (optionally quoted)
+  storage_root_line="$(printf '%s\n' "$env_lines" | grep -m1 'JMAKA_STORAGE_ROOT=' || true)"
+  storage_root="${storage_root_line#*JMAKA_STORAGE_ROOT=}"
+  storage_root="${storage_root%\"}"
+  storage_root="${storage_root#\"}"
 
   base_dir=""
   if [[ -n "$storage_root" ]]; then
@@ -59,17 +60,19 @@ for svc_name in "${UNIT_NAMES[@]}"; do
     app_dir="${base_dir%/}/app"
   fi
 
-  asp_urls="$(printf '%s\n' "$env_lines" | grep -m1 'ASPNETCORE_URLS=' || true)"
-  asp_urls="${asp_urls#*ASPNETCORE_URLS=}"
-  asp_urls="${asp_urls%"}""""
-  asp_urls="${asp_urls#"""}""
+  # Extract ASPNETCORE_URLS value (optionally quoted), then pull out the port
+  asp_urls_line="$(printf '%s\n' "$env_lines" | grep -m1 'ASPNETCORE_URLS=' || true)"
+  asp_urls="${asp_urls_line#*ASPNETCORE_URLS=}"
+  asp_urls="${asp_urls%\"}"
+  asp_urls="${asp_urls#\"}"
   # Expect something like http://127.0.0.1:5000
   port="$(printf '%s\n' "$asp_urls" | sed -E 's@.*:([0-9]+)$@\1@')"
 
-  base_path="$(printf '%s\n' "$env_lines" | grep -m1 'JMAKA_BASE_PATH=' || true)"
-  base_path="${base_path#*JMAKA_BASE_PATH=}"
-  base_path="${base_path%"}""""
-  base_path="${base_path#"""}""
+  # Extract JMAKA_BASE_PATH value (optionally quoted)
+  base_path_line="$(printf '%s\n' "$env_lines" | grep -m1 'JMAKA_BASE_PATH=' || true)"
+  base_path="${base_path_line#*JMAKA_BASE_PATH=}"
+  base_path="${base_path%\"}"
+  base_path="${base_path#\"}"
   [[ -z "$base_path" ]] && base_path="/"
 
   # Detect version from index.html inside app/wwwroot
