@@ -434,14 +434,15 @@ html, body {
 .files-table td {
   border-top: 1px solid var(--border);
   padding: 8px;
-  vertical-align: top;
+  vertical-align: middle;
+  text-align: center;
 }
 
 .files-table thead th {
   border-top: none;
   color: var(--muted);
   font-weight: 600;
-  text-align: left;
+  text-align: center;
 }
 
 .col-dt {
@@ -450,7 +451,11 @@ html, body {
 }
 
 .col-orig {
-  width: 240px;
+  width: 200px;
+}
+
+.col-crop {
+  width: 120px;
 }
 
 .col-size {
@@ -638,28 +643,33 @@ html, body {
   font-size: 18px;
 }
 
-.modal-body {
+ .modal-body {
   padding: 12px;
 }
 
 .crop-stage {
   position: relative;
   width: 100%;
-  max-width: 800px; /* crop mode: keep the displayed image within 800px */
-  height: min(80vh, 800px);
+  max-width: 800px;
+  /* чуть ниже, чем раньше (80vh), чтобы вся модалка влезала на 1080p вместе с хедером/футером */
+  height: clamp(260px, 55vh, 640px);
   margin: 0 auto;
-  display: grid;
-  place-items: center;
   background: rgba(0,0,0,0.25);
   border-radius: 12px;
   overflow: hidden;
+  /* центрируем содержимое и даём img занять всю область, а object-fit сделает contain */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .crop-img {
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* авто-fit по вертикали или горизонтали, чтобы вся картинка влезала */
   user-select: none;
   -webkit-user-drag: none;
+  transform-origin: center center;
 }
 
 .crop-rect {
@@ -771,6 +781,14 @@ html, body {
   flex-direction: column;
 }
 
+/* Crop modal: compact layout similar to Split, оптимизировано под 1920x1080 и ниже */
+.crop-card {
+  width: min(960px, calc(100% - 24px));
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+
 /* Make Split/Split3 UI a bit more compact (helps 1920x1080 and smaller heights) */
 .split-card .modal-header {
   padding: 10px 12px;
@@ -788,13 +806,24 @@ html, body {
   font-size: 11px;
 }
 
+/* Crop modal header/footer: тоже более компактные */
+.crop-card .modal-header,
+.crop-card .modal-footer {
+  padding: 10px 12px;
+}
+
+.crop-card .modal-body {
+  padding: 10px 12px;
+}
+
 /* Avoid nested scrolling; instead, shrink content via responsive sizes */
 .split-card .modal-body {
   overflow: hidden;
 }
 
 @media (max-height: 900px) {
-  .modal-card.split-card {
+  .modal-card.split-card,
+  .modal-card.crop-card {
     margin: 2vh auto;
   }
   .split-target {
@@ -913,7 +942,8 @@ html, body {
   width: min(100%, calc(clamp(200px, 38vh, 460px) * 16 / 9));
   margin: 0 auto;
   aspect-ratio: 16 / 9;
-  background: rgba(0,0,0,0.25);
+  /* фон рабочей области: 50% серого, чтобы было видно, где нет картинки */
+  background: #808080;
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;

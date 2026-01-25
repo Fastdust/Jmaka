@@ -8,10 +8,10 @@
     <!-- Версия приложения -->
     <Product>Jmaka</Product>
     <AssemblyTitle>Jmaka</AssemblyTitle>
-    <Version>0.1.4</Version>
-    <AssemblyVersion>0.1.4.0</AssemblyVersion>
-    <FileVersion>0.1.4.0</FileVersion>
-    <InformationalVersion>0.1.4</InformationalVersion>
+    <Version>0.2.0-rc1</Version>
+    <AssemblyVersion>0.2.0.0</AssemblyVersion>
+    <FileVersion>0.2.0.0</FileVersion>
+    <InformationalVersion>0.2.0-rc1</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

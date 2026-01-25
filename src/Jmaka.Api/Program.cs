@@ -701,7 +701,8 @@ app.MapPost("/upload", async Task<IResult> (HttpRequest request, CancellationTok
             PreviewRelativePath: previewRelativePath,
             ImageWidth: imageInfo.Width > 0 ? imageInfo.Width : null,
             ImageHeight: imageInfo.Height > 0 ? imageInfo.Height : null,
-            Resized: new Dictionary<int, string>()
+            Resized: new Dictionary<int, string>(),
+            IsCropped: false
         );
 
         await AppendHistoryAsync(historyPath, historyLock, entry, ct);
@@ -823,10 +824,15 @@ app.MapPost("/split", async Task<IResult> (SplitRequest req, CancellationToken c
         return Results.BadRequest(new { error = "invalid storedName" });
     }
 
-    // split uses the current originals (upload/*). This avoids requiring pre-generated resized images.
-    // NOTE: this reflects the current state (after crop, upload/<storedName> is updated).
-    var srcA = Path.Combine(uploadDir, storedNameA);
-    var srcB = Path.Combine(uploadDir, storedNameB);
+    // Split всегда использует ИСХОДНИКИ (upload-original/*), чтобы кроп не влиял на исходные материалы.
+    // Для старых записей, где копии может не быть, используем fallback на upload/*.
+    var srcAOrig = Path.Combine(uploadOriginalDir, storedNameA);
+    var srcBOrig = Path.Combine(uploadOriginalDir, storedNameB);
+    var srcAFallback = Path.Combine(uploadDir, storedNameA);
+    var srcBFallback = Path.Combine(uploadDir, storedNameB);
+
+    var srcA = File.Exists(srcAOrig) ? srcAOrig : srcAFallback;
+    var srcB = File.Exists(srcBOrig) ? srcBOrig : srcBFallback;
     if (!File.Exists(srcA) || !File.Exists(srcB))
     {
         return Results.BadRequest(new { error = "original file not found" });
@@ -858,13 +864,17 @@ app.MapPost("/split", async Task<IResult> (SplitRequest req, CancellationToken c
         {
             var vw = r.ViewW <= 0 ? 1 : r.ViewW;
             var vh = r.ViewH <= 0 ? 1 : r.ViewH;
+
+            // Используем единый коэффициент масштаба, чтобы избежать растяжения по одной оси
+            // из-за мелких расхождений размеров вьюпорта.
             var sx = outHalfW / vw;
             var sy = outH / vh;
+            var s = (sx + sy) / 2.0;
 
-            var x = (int)Math.Round(r.X * sx);
-            var y = (int)Math.Round(r.Y * sy);
-            var w = (int)Math.Round(r.W * sx);
-            var h = (int)Math.Round(r.H * sy);
+            var x = (int)Math.Round(r.X * s);
+            var y = (int)Math.Round(r.Y * s);
+            var w = (int)Math.Round(r.W * s);
+            var h = (int)Math.Round(r.H * s);
             return (x, y, Math.Max(1, w), Math.Max(1, h));
         }
 
@@ -944,11 +954,18 @@ app.MapPost("/split3", async Task<IResult> (Split3Request req, CancellationToken
         return Results.BadRequest(new { error = "invalid storedName" });
     }
 
-    // split3 uses the current originals (upload/*). This avoids requiring pre-generated resized images.
-    // NOTE: this reflects the current state (after crop, upload/<storedName> is updated).
-    var srcA = Path.Combine(uploadDir, storedNameA);
-    var srcB = Path.Combine(uploadDir, storedNameB);
-    var srcC = Path.Combine(uploadDir, storedNameC);
+    // Split3 тоже всегда использует ИСХОДНИКИ (upload-original/*).
+    // Для старых записей fallback на upload/*.
+    var srcAOrig = Path.Combine(uploadOriginalDir, storedNameA);
+    var srcBOrig = Path.Combine(uploadOriginalDir, storedNameB);
+    var srcCOrig = Path.Combine(uploadOriginalDir, storedNameC);
+    var srcAFallback = Path.Combine(uploadDir, storedNameA);
+    var srcBFallback = Path.Combine(uploadDir, storedNameB);
+    var srcCFallback = Path.Combine(uploadDir, storedNameC);
+
+    var srcA = File.Exists(srcAOrig) ? srcAOrig : srcAFallback;
+    var srcB = File.Exists(srcBOrig) ? srcBOrig : srcBFallback;
+    var srcC = File.Exists(srcCOrig) ? srcCOrig : srcCFallback;
     if (!File.Exists(srcA) || !File.Exists(srcB) || !File.Exists(srcC))
     {
         return Results.BadRequest(new { error = "original file not found" });
@@ -983,13 +1000,16 @@ app.MapPost("/split3", async Task<IResult> (Split3Request req, CancellationToken
         {
             var vw = r.ViewW <= 0 ? 1 : r.ViewW;
             var vh = r.ViewH <= 0 ? 1 : r.ViewH;
+
+            // То же самое для Split3: единый масштаб без растяжения по одной оси.
             var sx = outPanelW / vw;
             var sy = outH / vh;
+            var s = (sx + sy) / 2.0;
 
-            var x = (int)Math.Round(r.X * sx);
-            var y = (int)Math.Round(r.Y * sy);
-            var w = (int)Math.Round(r.W * sx);
-            var h = (int)Math.Round(r.H * sy);
+            var x = (int)Math.Round(r.X * s);
+            var y = (int)Math.Round(r.Y * s);
+            var w = (int)Math.Round(r.W * s);
+            var h = (int)Math.Round(r.H * s);
             return (x, y, Math.Max(1, w), Math.Max(1, h));
         }
 
@@ -1185,7 +1205,11 @@ app.MapPost("/trashimg", async Task<IResult> (WindowCropRequest req, Cancellatio
         return Results.BadRequest(new { error = "invalid storedName" });
     }
 
-    var originalPath = Path.Combine(uploadDir, storedName);
+    // OknoFix всегда должен работать с исходным файлом (upload-original/*),
+    // чтобы кроп оригинала не влиял на шаблонные карточки.
+    var originalPathOrig = Path.Combine(uploadOriginalDir, storedName);
+    var originalPathFallback = Path.Combine(uploadDir, storedName);
+    var originalPath = File.Exists(originalPathOrig) ? originalPathOrig : originalPathFallback;
     if (!File.Exists(originalPath))
     {
         return Results.NotFound(new { error = "original file not found" });
@@ -1343,7 +1367,10 @@ app.MapPost("/oknoscale", async Task<IResult> (WindowCropRequest req, Cancellati
         return Results.BadRequest(new { error = "invalid storedName" });
     }
 
-    var originalPath = Path.Combine(uploadDir, storedName);
+    // OknoScale также должен всегда опираться на исходник (upload-original/*).
+    var originalPathOrig = Path.Combine(uploadOriginalDir, storedName);
+    var originalPathFallback = Path.Combine(uploadDir, storedName);
+    var originalPath = File.Exists(originalPathOrig) ? originalPathOrig : originalPathFallback;
     if (!File.Exists(originalPath))
     {
         return Results.NotFound(new { error = "original file not found" });
@@ -1818,7 +1845,8 @@ static async Task UpdateHistoryAfterCropAsync(
             ImageWidth = newWidth,
             ImageHeight = newHeight,
             PreviewRelativePath = $"preview/{storedName}",
-            Resized = new Dictionary<int, string>()
+            Resized = new Dictionary<int, string>(),
+            IsCropped = true
         };
         await WriteHistoryAsync(historyPath, historyLock, items, ct);
         return;
@@ -1866,7 +1894,8 @@ record UploadHistoryItem(
     string? PreviewRelativePath,
     int? ImageWidth,
     int? ImageHeight,
-    Dictionary<int, string> Resized
+    Dictionary<int, string> Resized,
+    bool IsCropped
 );
 
 record CompositeDeleteRequest(string RelativePath);

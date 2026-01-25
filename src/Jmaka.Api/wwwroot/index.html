@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Jmaka 0.1.4</title>
-  <link rel="stylesheet" href="app.css?v=0.1.4" />
+  <title>Jmaka 0.2.0-rc1</title>
+  <link rel="stylesheet" href="app.css?v=0.2.0-rc1" />
 </head>
 <body>
   <main class="page">
@@ -26,7 +26,7 @@
       </button>
 
       <div class="preview-wrap">
-        <div class="preview-title">Jmaka 0.1.4</div>
+        <div class="preview-title">Jmaka 0.2.0-rc1</div>
 
         <div class="main-controls" aria-label="Панель управления">
           <div class="tool-buttons" aria-label="Инструменты" hidden>
@@ -53,13 +53,14 @@
 
     <div class="tables-wrap" aria-label="Таблицы файлов">
       <div class="links-wrap" aria-label="Таблица файлов">
-        <div class="links-title">Готовые файлы</div>
+        <div class="links-title">Original / Crop / Sizes</div>
         <div class="table-wrap">
           <table class="files-table" aria-label="Готовые файлы">
             <thead>
               <tr>
                 <th class="col-dt">Дата - время</th>
                 <th class="col-orig">Оригинал</th>
+                <th class="col-crop">Crop</th>
                 <th class="col-size">1280</th>
                 <th class="col-size">1920</th>
                 <th class="col-size">2440</th>
@@ -72,7 +73,7 @@
       </div>
 
       <div class="links-wrap composites-wrap" aria-label="Таблица Split">
-        <div class="links-title">Split / Split3</div>
+      <div class="links-title">Split / Split3 / OknoFix / OknoScale</div>
         <div class="table-wrap">
           <table class="files-table" aria-label="Split / Split3">
             <thead>
@@ -374,7 +375,7 @@
   <!-- Модалка кадрирования -->
   <div id="cropModal" class="modal" hidden>
     <div class="modal-backdrop" data-close="1"></div>
-    <div class="modal-card" role="dialog" aria-modal="true" aria-label="Кадрирование">
+    <div class="modal-card crop-card" role="dialog" aria-modal="true" aria-label="Кадрирование">
       <div class="modal-header">
         <div class="modal-title-wrap">
           <div class="modal-title">Кадрирование</div>
@@ -465,6 +466,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=0.1.4"></script>
+  <script src="app.js?v=0.2.0-rc1"></script>
 </body>
 </html>

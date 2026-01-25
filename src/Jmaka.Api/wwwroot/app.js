@@ -116,6 +116,27 @@ if (filesTbody) {
   });
 }
 
+// Intercept clicks in composites table (right column) and open in viewer as well
+if (compositesTbody) {
+  compositesTbody.addEventListener('click', (e) => {
+    const a = e.target && e.target.closest ? e.target.closest('a') : null;
+    if (!a) return;
+
+    const href = a.getAttribute('href');
+    if (!href) return;
+
+    if (!isLikelyImageUrl(href)) {
+      return;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const label = a.textContent && a.textContent.trim() ? a.textContent.trim() : href;
+    openViewer(href, label);
+  });
+}
+
 // delete modal elements
 const deleteModal = document.getElementById('deleteModal');
 const deleteCloseBtn = document.getElementById('deleteClose');
@@ -545,8 +566,10 @@ function splitSyncGallerySelection() {
 }
 
 function splitGetOriginalUrl(item) {
-  if (!item || !item.originalRelativePath) return null;
-  return withCacheBust(String(item.originalRelativePath), item.storedName);
+  if (!item || !item.storedName) return null;
+  // Для Split/Split3 всегда тянем настоящий исходник: upload-original/<storedName>
+  const rel = `upload-original/${item.storedName}`;
+  return withCacheBust(rel, item.storedName);
 }
 
 function splitSetItemFromStoredName(which, storedName) {
@@ -961,6 +984,54 @@ function wireSplitUI() {
 
   wireItem('a', splitItemA);
   wireItem('b', splitItemB);
+
+  // Zoom по колёсику мыши в Split (увеличивает/уменьшает картинку под курсором)
+  splitStage.addEventListener('wheel', (e) => {
+    if (!splitState.open) return;
+
+    // определяем, над какой половиной находимся
+    const stageRect = splitStage.getBoundingClientRect();
+    const midX = stageRect.left + stageRect.width / 2;
+    const which = e.clientX < midX ? 'a' : 'b';
+    const st = which === 'a' ? splitState.a : splitState.b;
+    if (!st || !st.url) return;
+
+    const { w: halfW, h: halfH } = splitGetHalfSize(which);
+    if (!halfW || !halfH) return;
+
+    const halfRect = which === 'a' ? splitHalfLeft.getBoundingClientRect() : splitHalfRight.getBoundingClientRect();
+    const px = e.clientX - halfRect.left;
+    const py = e.clientY - halfRect.top;
+
+    // позиция курсора внутри самой картинки
+    const imgPx = px - st.x;
+    const imgPy = py - st.y;
+
+    e.preventDefault();
+
+    const factor = e.deltaY < 0 ? 1.08 : 0.93;
+    const minW = 60;
+    const maxWHard = 20000;
+
+    const newW = Math.max(minW, Math.min(st.w * factor, maxWHard));
+    const aspect = st.natW && st.natH ? (st.natW / st.natH) : (st.w && st.h ? st.w / st.h : 1);
+    const newH = newW / aspect;
+
+    // Чтобы курсор "смотрел" на ту же точку картинки после зума
+    const relX = imgPx / st.w;
+    const relY = imgPy / st.h;
+
+    let newX = px - relX * newW;
+    let newY = py - relY * newH;
+
+    st.x = newX;
+    st.y = newY;
+    st.w = newW;
+    st.h = newH;
+
+    splitClampMove(which, st, halfW, halfH);
+    splitShowItem(which);
+  });
 
   // apply
   if (splitApplyBtn) {
@@ -1523,6 +1594,61 @@ function wireSplit3UI() {
   wireItem('b', split3ItemB);
   wireItem('c', split3ItemC);
 
+  // Zoom по колёсику мыши в Split3 (увеличивает/уменьшает картинку под курсором)
+  split3Stage.addEventListener('wheel', (e) => {
+    if (!split3State.open) return;
+
+    // выясняем, над какой третью сейчас курсор
+    const stageRect = split3Stage.getBoundingClientRect();
+    const thirdA = getSplit3PanelRect('a');
+    const thirdB = getSplit3PanelRect('b');
+    const thirdC = getSplit3PanelRect('c');
+
+    let which;
+    if (thirdA && e.clientX >= thirdA.left && e.clientX <= thirdA.right) which = 'a';
+    else if (thirdB && e.clientX >= thirdB.left && e.clientX <= thirdB.right) which = 'b';
+    else which = 'c';
+
+    const st = which === 'a' ? split3State.a : (which === 'b' ? split3State.b : split3State.c);
+    if (!st || !st.url) return;
+
+    const { w: panelW, h: panelH } = split3GetPanelSize(which);
+    if (!panelW || !panelH) return;
+
+    const panelRect = which === 'a' ? thirdA : (which === 'b' ? thirdB : thirdC);
+    if (!panelRect) return;
+
+    const px = e.clientX - panelRect.left;
+    const py = e.clientY - panelRect.top;
+
+    const imgPx = px - st.x;
+    const imgPy = py - st.y;
+
+    e.preventDefault();
+
+    const factor = e.deltaY < 0 ? 1.08 : 0.93;
+    const minW = 60;
+    const maxWHard = 20000;
+
+    const newW = Math.max(minW, Math.min(st.w * factor, maxWHard));
+    const aspect = st.natW && st.natH ? (st.natW / st.natH) : (st.w && st.h ? st.w / st.h : 1);
+    const newH = newW / aspect;
+
+    const relX = imgPx / st.w;
+    const relY = imgPy / st.h;
+
+    let newX = px - relX * newW;
+    let newY = py - relY * newH;
+
+    st.x = newX;
+    st.y = newY;
+    st.w = newW;
+    st.h = newH;
+
+    split3ClampMove(which, st, panelW, panelH);
+    split3ShowItem(which);
+  });
+
   if (split3ApplyBtn) {
     split3ApplyBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -1556,7 +1682,10 @@ let cropState = {
   imgBox: null, // { x, y, w, h } in stage coords
   rect: { x: 0, y: 0, w: 0, h: 0 },
   action: null, // { type: 'move'|'resize', handle?: 'tl'|'tr'|'bl'|'br', startRect, startX, startY, offsetX, offsetY }
-  busy: false
+  busy: false,
+  zoom: 1,
+  imgPan: { x: 0, y: 0 },
+  imgPanAction: null // { startPointerX, startPointerY, startOffsetX, startOffsetY }
 };
 
 function setBusy(busy) {
@@ -1692,6 +1821,49 @@ function appendLinkWithDownload(td, linkEl, href, suggestedName) {
   td.appendChild(wrap);
 }
 
+function buildOpDownloadName(originalName, storedName, op) {
+  // Всегда маскируем исходное имя и добавляем дату в начало имени файла.
+  // В качестве базы используем только служебное имя (storedName)
+  // или техническое имя файла (для Split/Okno и т.п.). originalName игнорируем.
+  const core = (storedName && String(storedName).trim()) || 'image';
+
+  // Префикс даты в формате YYYYMMDD- (по текущему времени на момент скачивания).
+  let datePrefix = '';
+  try {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    datePrefix = `${yyyy}${mm}${dd}`;
+  } catch {
+    // если по какой-то причине Date не сработал, просто без даты
+    datePrefix = '';
+  }
+
+  // Не дублируем дату, если имя уже начинается с YYYYMMDD-
+  let base = core;
+  if (datePrefix) {
+    const maybeDate = core.slice(0, 8);
+    const hasDatePrefix =
+      core.length > 9 &&
+      core.charAt(8) === '-' &&
+      /^[0-9]{8}$/.test(maybeDate);
+    if (!hasDatePrefix) {
+      base = `${datePrefix}-${core}`;
+    }
+  }
+
+  const dot = base.lastIndexOf('.');
+  const suffix = op && String(op).trim() ? `-${op}` : '';
+  if (dot > 0 && dot < base.length - 1) {
+    const name = base.slice(0, dot);
+    const ext = base.slice(dot); // включая точку
+    return `${name}${suffix}${ext}`;
+  }
+  // если расширения нет, просто добавим суффикс
+  return `${base}${suffix}`;
+}
+
 function setActiveRow(storedName) {
   for (const v of uploads.values()) {
     v.tr.classList.remove('is-active');
@@ -1783,17 +1955,44 @@ function ensureTableRowForUpload(data, opts) {
 
   const tdOrig = document.createElement('td');
   tdOrig.className = 'col-orig';
-  // В таблице показываем миниатюру (preview/*), а ссылка ведёт на оригинал.
-  // Если previewRelativePath нет (старые записи) — используем оригинал.
+
+  const tdCrop = document.createElement('td');
+  tdCrop.className = 'col-crop';
+
   if (data.imageWidth && data.imageHeight) {
-    const href = withCacheBust(data.originalRelativePath, storedName);
-    const imgSrc = withCacheBust(data.previewRelativePath ? data.previewRelativePath : data.originalRelativePath, storedName);
-    const link = makeImageLink(href, imgSrc, 'original');
-    appendLinkWithDownload(tdOrig, link, href, data.originalName || storedName);
+    // Оригинал: всегда ведём на upload-original/<storedName> (исходный файл до кропа)
+    // и именно его показываем в мини-превью.
+    const origHrefRel = `upload-original/${storedName}`;
+    const origHref = withCacheBust(origHrefRel, storedName);
+    const origImgSrc = origHref; // маленький preview не генерируем, браузер сам ужмёт.
+
+    const origLink = makeImageLink(origHref, origImgSrc, 'original');
+    const origDlName = buildOpDownloadName(data.originalName, storedName, 'orig');
+    appendLinkWithDownload(tdOrig, origLink, origHref, origDlName);
+
+    // Crop показываем только после первого кропа (isCropped === true).
+    if (data.isCropped) {
+      const cropHref = withCacheBust(data.originalRelativePath, storedName);
+      const cropImgSrc = withCacheBust(
+        data.previewRelativePath ? data.previewRelativePath : data.originalRelativePath,
+        storedName
+      );
+      const cropLink = makeImageLink(cropHref, cropImgSrc, 'crop');
+      const dlName = buildOpDownloadName(data.originalName, storedName, 'crop');
+      appendLinkWithDownload(tdCrop, cropLink, cropHref, dlName);
+    } else {
+      tdCrop.textContent = '—';
+      tdCrop.classList.add('size-cell', 'empty');
+    }
   } else {
+    // Неизображения: ведём оригинальную ссылку, crop остаётся пустым.
     const href = withCacheBust(data.originalRelativePath, storedName);
     const link = makeA(href, 'original');
-    appendLinkWithDownload(tdOrig, link, href, data.originalName || storedName);
+    const origDlName = buildOpDownloadName(data.originalName, storedName, 'orig');
+    appendLinkWithDownload(tdOrig, link, href, origDlName);
+
+    tdCrop.textContent = '—';
+    tdCrop.classList.add('size-cell', 'empty');
   }
 
   const cells = new Map();
@@ -1822,13 +2021,15 @@ function ensureTableRowForUpload(data, opts) {
   tdDel.appendChild(delBtn);
   tr.appendChild(tdDel);
 
+  // Собираем ячейки в нужном порядке: Дата | Оригинал | Crop | 1280 | 1920 | 2440 | Delete
+  tr.insertBefore(tdCrop, tr.firstChild);
   tr.insertBefore(tdOrig, tr.firstChild);
   tr.insertBefore(tdDt, tr.firstChild);
 
   // новая запись сверху
   filesTbody.insertBefore(tr, filesTbody.firstChild);
 
-  uploads.set(storedName, { tr, cells, created: new Set() });
+  uploads.set(storedName, { tr, cells, cropTd: tdCrop, created: new Set(), originalName: data.originalName || null });
   if (makeActive) {
     setActiveRow(storedName);
   }
@@ -1940,7 +2141,8 @@ function setCellLink(storedName, width, relativePath) {
 
   const href = withCacheBust(relativePath, storedName);
   const link = makeA(href, String(width));
-  appendLinkWithDownload(td, link, href);
+  const dlName = buildOpDownloadName(u.originalName, storedName, String(width));
+  appendLinkWithDownload(td, link, href, dlName);
 }
 
 
@@ -2301,15 +2503,111 @@ function computeImgBoxInStage() {
   if (!cropStage || !cropImg) return null;
 
   const stageRect = cropStage.getBoundingClientRect();
-  const imgRect = cropImg.getBoundingClientRect();
+  const stageW = stageRect.width;
+  const stageH = stageRect.height;
+  if (!stageW || !stageH) return null;
 
-  const x = imgRect.left - stageRect.left;
-  const y = imgRect.top - stageRect.top;
-  const w = imgRect.width;
-  const h = imgRect.height;
+  const natW = cropImg.naturalWidth || 0;
+  const natH = cropImg.naturalHeight || 0;
+  const z = typeof cropState.zoom === 'number' ? cropState.zoom : 1;
+  const hasPan = cropState.imgPan && (cropState.imgPan.x || cropState.imgPan.y);
+
+  // Если нет инфы о размере картинки — используем только boundingClientRect.
+  if (!natW || !natH || natW <= 0 || natH <= 0) {
+    const imgRect = cropImg.getBoundingClientRect();
+    const x0 = imgRect.left - stageRect.left;
+    const y0 = imgRect.top - stageRect.top;
+    const w0 = imgRect.width;
+    const h0 = imgRect.height;
+    if (w0 <= 1 || h0 <= 1) return null;
+    return { x: x0, y: y0, w: w0, h: h0 };
+  }
+
+  // Базовый прямоугольник содержимого (без zoom/pan), как отрисовывает object-fit: contain.
+  const imgAspect = natW / natH;
+  const stageAspect = stageW / stageH;
+
+  let baseW;
+  let baseH;
+
+  if (imgAspect > stageAspect) {
+    // шире контейнера: вписываем по ширине
+    baseW = stageW;
+    baseH = baseW / imgAspect;
+  } else {
+    // выше контейнера: вписываем по высоте
+    baseH = stageH;
+    baseW = baseH * imgAspect;
+  }
+
+  if (baseW <= 1 || baseH <= 1) return null;
+
+  // Без zoom/pan просто возвращаем базовую рамку (как раньше).
+  if (z === 1 && !hasPan) {
+    const offsetX = (stageW - baseW) / 2;
+    const offsetY = (stageH - baseH) / 2;
+    return { x: offsetX, y: offsetY, w: baseW, h: baseH };
+  }
+
+  // При zoom/pan <img> масштабируется относительно центра всего stage (width/height = 100%).
+  // Но реальное содержимое внутри него имеет размеры baseW/baseH. Чтобы получить рамку
+  // именно по содержимому, берём boundingClientRect img и корректируем его на разницу
+  // между размером элемента (stageW/stageH) и содержимого (baseW/baseH).
+  const imgRect = cropImg.getBoundingClientRect();
+  const xImg = imgRect.left - stageRect.left;
+  const yImg = imgRect.top - stageRect.top;
+
+  const w = baseW * z;
+  const h = baseH * z;
+  const x = xImg + (stageW - baseW) * z / 2;
+  const y = yImg + (stageH - baseH) * z / 2;
 
   if (w <= 1 || h <= 1) return null;
   return { x, y, w, h };
+}
+
+function applyCropImgTransform() {
+  if (!cropImg) return;
+  const z = typeof cropState.zoom === 'number' ? cropState.zoom : 1;
+  const pan = cropState.imgPan || { x: 0, y: 0 };
+
+  if (z === 1 && (!pan.x && !pan.y)) {
+    cropImg.style.transform = 'none';
+    return;
+  }
+
+  cropImg.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${z})`;
+}
+
+function cropSetZoom(zoom) {
+  if (!cropStage || !cropImg) return;
+  const MIN_ZOOM = 1;
+  const MAX_ZOOM = 5;
+  const z = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom || 1));
+  cropState.zoom = z;
+  applyCropImgTransform();
+
+  const b = computeImgBoxInStage();
+  if (!b) return;
+  cropState.imgBox = b;
+
+  // После изменения зума гарантируем, что рамка остаётся в пределах изображения.
+  const r = clampMoveRectToImgBox(
+    cropState.rect.x,
+    cropState.rect.y,
+    cropState.rect.w,
+    cropState.rect.h
+  );
+  cropState.rect = r;
+  showCropRect();
+}
+
+function cropZoomByFactor(factor) {
+  if (!cropState.open || cropState.busy) return;
+  if (!cropStage || !cropImg) return;
+  const current = typeof cropState.zoom === 'number' ? cropState.zoom : 1;
+  const next = current * (factor || 1);
+  cropSetZoom(next);
 }
 
 function initCropRect() {
@@ -2341,6 +2639,12 @@ function openCropModal() {
   cropState.originalRelativePath = lastUpload.originalRelativePath;
   cropState.sourceRelativePath = `upload-original/${lastUpload.storedName}`;
   cropState.action = null;
+  cropState.zoom = 1;
+  cropState.imgPan = { x: 0, y: 0 };
+  cropState.imgPanAction = null;
+  if (cropImg) {
+    cropImg.style.transform = 'none';
+  }
   setCropBusy(false);
 
   // Keep current aspect selection (default 16:9)
@@ -2405,11 +2709,15 @@ function closeCropModal() {
   cropState.open = false;
   cropState.action = null;
   cropState.sourceRelativePath = null;
+  cropState.zoom = 1;
+  cropState.imgPan = { x: 0, y: 0 };
+  cropState.imgPanAction = null;
   setCropBusy(false);
 
   if (cropImg) {
     cropImg.onerror = null;
     delete cropImg.dataset.fallbackTried;
+    cropImg.style.transform = 'none';
     cropImg.removeAttribute('src');
     cropImg.alt = '';
   }
@@ -2475,18 +2783,22 @@ async function applyCrop() {
   const natH = cropImg.naturalHeight;
   if (!natW || !natH) return;
 
+  // В реальности DOM-замеры ширины/высоты (getBoundingClientRect) могут дать немного
+  // разные коэффициенты по X и Y из-за округления. Чтобы не "ломать" пропорции
+  // выбранной рамки (1:1, 2:3, 16:9 и т.п.), берём единый scale.
   const scaleX = natW / b.w;
   const scaleY = natH / b.h;
+  const scale = (scaleX + scaleY) / 2;
 
   const xInImg = cropState.rect.x - b.x;
   const yInImg = cropState.rect.y - b.y;
 
   const req = {
     storedName: cropState.storedName,
-    x: Math.round(xInImg * scaleX),
-    y: Math.round(yInImg * scaleY),
-    width: Math.round(cropState.rect.w * scaleX),
-    height: Math.round(cropState.rect.h * scaleY)
+    x: Math.round(xInImg * scale),
+    y: Math.round(yInImg * scale),
+    width: Math.round(cropState.rect.w * scale),
+    height: Math.round(cropState.rect.h * scale)
   };
 
   try {
@@ -2670,6 +2982,103 @@ function wireCropUI() {
   cropRectEl.addEventListener('pointerup', endPointer);
   cropRectEl.addEventListener('pointercancel', endPointer);
 
+  // Зум: колесо мыши по рабочему полю кадрирования
+  if (cropStage) {
+    cropStage.addEventListener('wheel', (e) => {
+      if (!cropState.open || cropState.busy) return;
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.08 : 0.93;
+      cropZoomByFactor(factor);
+    });
+
+    // Панорамирование изображения мышью (перетаскивание по полю)
+    cropStage.addEventListener('pointerdown', (e) => {
+      if (!cropState.open || cropState.busy) return;
+      const t = e.target;
+      // если клик по рамке или её ручкам — отдаём управление логике рамки
+      if (cropRectEl && (t === cropRectEl || cropRectEl.contains(t))) return;
+
+      const pan = cropState.imgPan || { x: 0, y: 0 };
+      cropState.imgPanAction = {
+        startPointerX: e.clientX,
+        startPointerY: e.clientY,
+        startOffsetX: pan.x || 0,
+        startOffsetY: pan.y || 0
+      };
+
+      try { cropStage.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+      e.preventDefault();
+    });
+
+    cropStage.addEventListener('pointermove', (e) => {
+      if (!cropState.open || cropState.busy) return;
+      const act = cropState.imgPanAction;
+      if (!act) return;
+
+      const dx = e.clientX - act.startPointerX;
+      const dy = e.clientY - act.startPointerY;
+
+      cropState.imgPan = {
+        x: act.startOffsetX + dx,
+        y: act.startOffsetY + dy
+      };
+
+      applyCropImgTransform();
+
+      const b = computeImgBoxInStage();
+      if (b) {
+        cropState.imgBox = b;
+        const r = clampMoveRectToImgBox(
+          cropState.rect.x,
+          cropState.rect.y,
+          cropState.rect.w,
+          cropState.rect.h
+        );
+        cropState.rect = r;
+        showCropRect();
+      }
+    });
+
+    const endImgPan = (e) => {
+      if (!cropState.imgPanAction) return;
+      cropState.imgPanAction = null;
+      try { cropStage.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    };
+
+    cropStage.addEventListener('pointerup', endImgPan);
+    cropStage.addEventListener('pointercancel', endImgPan);
+  }
+
+  // Горячие клавиши для CROP: = / - / Ctrl+0 (сброс зума)
+  document.addEventListener('keydown', (e) => {
+    if (!cropState.open || cropState.busy) return;
+
+    if ((e.key === '=' || e.key === '+') && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      cropZoomByFactor(1.08);
+      return;
+    }
+
+    if ((e.key === '-' || e.key === '_') && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      cropZoomByFactor(0.93);
+      return;
+    }
+
+    if ((e.key === '0' || e.code === 'Digit0') && e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      cropState.imgPan = { x: 0, y: 0 };
+      cropState.imgPanAction = null;
+      cropSetZoom(1);
+      // переинициализируем рамку по вписанному изображению
+      const b = computeImgBoxInStage();
+      if (b) {
+        cropState.imgBox = b;
+        initCropRect();
+      }
+    }
+  });
+
   // если окно/вьюпорт изменился — пересчитаем box и чуть поправим прямоугольник
   window.addEventListener('resize', () => {
     if (!cropState.open) return;
@@ -2767,7 +3176,13 @@ async function loadComposites() {
       if (rel) {
         const href = rel;
         const link = makeImageLink(href, rel, kind || 'split');
-        appendLinkWithDownload(tdImg, link, href);
+        const fileName = rel.split('/').pop() || '';
+        let op = 'split';
+        if (kind === 'split3') op = 'split3';
+        else if (kind === 'trashimg') op = 'oknofix';
+        else if (kind === 'oknoscale') op = 'oknoscale';
+        const dlName = buildOpDownloadName(fileName, fileName, op);
+        appendLinkWithDownload(tdImg, link, href, dlName);
       } else {
         tdImg.textContent = '—';
         tdImg.classList.add('empty');
@@ -2905,7 +3320,9 @@ function openOknoScaleModal() {
 
   oknoScaleState.open = true;
   oknoScaleState.storedName = lastUpload.storedName;
-  const rel = lastUpload.originalRelativePath;
+  // Для OknoScale в превью всегда используем исходник upload-original/<storedName>,
+  // а не обрезанный upload/*.
+  const rel = `upload-original/${lastUpload.storedName}`;
   oknoScaleState.url = withCacheBust(rel, lastUpload.storedName);
 
   oknoScaleModal.hidden = false;
@@ -3375,9 +3792,8 @@ function openOknoFixModal(mode) {
   oknoFixState.open = true;
   oknoFixState.mode = mode === 'fix' ? 'fix' : 'experimental';
   oknoFixState.storedName = lastUpload.storedName;
-  // Для TrashImg всегда используем ОРИГИНАЛ (upload/*), чтобы координаты кадра
-  // совпадали с координатами, по которым режем на бэкенде.
-  const rel = lastUpload.originalRelativePath;
+  // Для OknoFix в рабочем поле тоже всегда показываем исходник upload-original/<storedName>.
+  const rel = `upload-original/${lastUpload.storedName}`;
   oknoFixState.url = withCacheBust(rel, lastUpload.storedName);
 
   trashModal.hidden = false;
